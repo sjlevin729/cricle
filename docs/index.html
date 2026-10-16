@@ -1,0 +1,1405 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'self'; form-action 'self'; object-src 'none'">
+<title>Cricle: guess the international cricketer</title>
+<meta name="description" content="A new international cricketer to find every day. Ten guesses, one for each wicket. Green is a match, orange is close.">
+<meta name="theme-color" content="#17311f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Cricle: guess the international cricketer">
+<meta property="og:description" content="A new international cricketer to find every day. Ten guesses, one for each wicket.">
+<meta property="og:image" content="og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preload" href="fonts/big-shoulders-display-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/public-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+/* Layout: one centred column (40rem max). A scoreboard-green bar on top, the puzzle head as a scoreboard plate,
+   then guesses stacked newest first, each a board of eight plates in two rows of four. Other views swap into the column. */
+:root {
+  --bg: #eef2ec;
+  --panel: #ffffff;
+  --panel-2: #e4eae2;
+  --line: #cad4c7;
+  --ink: #12261a;
+  --ink-soft: #4b6052;
+  --board: #17311f;
+  --board-2: #21402b;
+  --board-ink: #f3f1e7;
+  --board-soft: #a9bdae;
+  --ball: #b3302a;
+  --hit: #26803f;
+  --hit-ink: #ffffff;
+  --near: #ef9f2f;
+  --near-ink: #241603;
+  --miss: #d8dfd5;
+  --miss-ink: #3a493f;
+  --dash-line: #8e9d92;
+  --focus: #1d6fd1;
+  --display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1912; --panel: #122419; --panel-2: #192f22; --line: #294533; --ink: #e9efe5; --ink-soft: #9fb3a5;
+    --board: #0f2218; --board-2: #1a3525; --board-ink: #f3f1e7; --board-soft: #9fb3a5; --ball: #e2574b;
+    --hit: #26803f; --hit-ink: #ffffff; --near: #f2a640; --near-ink: #241603; --miss: #2a3e32; --miss-ink: #c8d5cb;
+    --dash-line: #5f776a; --focus: #82b4ff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1912; --panel: #122419; --panel-2: #192f22; --line: #294533; --ink: #e9efe5; --ink-soft: #9fb3a5;
+  --board: #0f2218; --board-2: #1a3525; --board-ink: #f3f1e7; --board-soft: #9fb3a5; --ball: #e2574b;
+  --hit: #26803f; --hit-ink: #ffffff; --near: #f2a640; --near-ink: #241603; --miss: #2a3e32; --miss-ink: #c8d5cb;
+  --dash-line: #5f776a; --focus: #82b4ff; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 400 15px/1.5 var(--body); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Top bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--board); color: var(--board-ink);
+  border-bottom: 3px solid var(--ball); }
+.bar-in { max-width: 40rem; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.brand { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; }
+.brand svg { width: 30px; height: 30px; flex: none; }
+.brand b { font: 900 1.7rem/1 var(--display); letter-spacing: .02em; text-transform: uppercase; }
+.menu-btn { background: transparent; border: 1px solid var(--board-soft); color: var(--board-ink); border-radius: var(--radius);
+  padding: 6px 14px; font-weight: 600; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+.menu-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.chev { transition: transform .15s; font-size: .7em; }
+.menu { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(100% + 6px); background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 30px rgb(0 0 0 / .25); min-width: 14rem; padding: 6px; display: grid; }
+.menu button { text-align: left; background: none; border: 0; padding: 11px 12px; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+.menu button:hover { background: var(--panel-2); }
+.bar-wrap { position: relative; max-width: 40rem; margin: 0 auto; }
+
+main { max-width: 40rem; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.view { display: grid; gap: 18px; }
+
+/* Puzzle head */
+.head { display: grid; gap: 6px; text-align: center; }
+h1 { font: 800 clamp(2rem, 7vw, 2.75rem)/1.02 var(--display); text-transform: uppercase; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h2 { font: 800 1.9rem/1.05 var(--display); text-transform: uppercase; margin: 0; text-wrap: balance; }
+h3 { font: 800 1.25rem/1.1 var(--display); text-transform: uppercase; letter-spacing: .02em; margin: 0; }
+.lede { color: var(--ink-soft); margin: 0 auto; max-width: 32rem; text-wrap: balance; }
+.lede button.link, button.link { background: none; border: 0; padding: 0; color: var(--ink); text-decoration: underline; text-decoration-color: var(--near);
+  text-decoration-thickness: 2px; text-underline-offset: 3px; cursor: pointer; font-weight: 600; }
+
+/* Scoreboard plate */
+.plate { background: var(--board); color: var(--board-ink); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .06); }
+.plate-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.plate-title { font: 800 1.35rem/1 var(--display); text-transform: uppercase; letter-spacing: .04em; }
+.plate-title small { font: 600 .8rem/1 var(--body); letter-spacing: .02em; text-transform: none; color: var(--board-soft); margin-left: 8px; }
+.score { font: 800 1.35rem/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.score span { color: var(--board-soft); font-size: .8em; }
+.wkts { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+.wkt { height: 20px; border-radius: 3px; background: var(--board-2); position: relative; }
+.wkt::before, .wkt::after { content: ""; position: absolute; top: 4px; bottom: 3px; width: 2px; background: var(--board-ink); opacity: .9; }
+.wkt::before { left: calc(50% - 5px); box-shadow: 4px 0 0 var(--board-ink), 8px 0 0 var(--board-ink); }
+.wkt::after { display: none; }
+.wkt.down { background: transparent; box-shadow: inset 0 0 0 1px var(--board-2); }
+.wkt.down::before { background: var(--ball); box-shadow: 4px 0 0 var(--ball), 8px 0 0 var(--ball); transform: rotate(18deg); transform-origin: bottom; opacity: .85; }
+.plate-note { color: var(--board-soft); font-size: .85rem; }
+
+/* Guess box */
+.guessbox { position: relative; }
+.guessbox label { display: block; font-weight: 600; margin-bottom: 6px; }
+.guessbox input { width: 100%; padding: 14px 14px; border: 2px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 1.05rem; }
+.guessbox input:focus { border-color: var(--ink-soft); outline: none; }
+.sugg { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 10; list-style: none; margin: 0; padding: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 14px 30px rgb(0 0 0 / .18); max-height: 22rem; overflow-y: auto; }
+.sugg li { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 10px; border-radius: 6px; cursor: pointer; }
+.sugg li[aria-selected="true"], .sugg li:hover { background: var(--panel-2); }
+.sugg .n { font-weight: 600; min-width: 0; }
+.sugg .m { color: var(--ink-soft); font-size: .85rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sugg .empty { cursor: default; color: var(--ink-soft); }
+
+/* Hints */
+.hints { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.hint { border: 1px dashed var(--dash-line); border-radius: 8px; padding: 10px 12px; background: transparent; text-align: left; min-width: 0; }
+.hint b { display: block; font: 800 1rem/1.1 var(--display); text-transform: uppercase; letter-spacing: .04em; }
+.hint span { color: var(--ink-soft); font-size: .85rem; }
+button.hint { cursor: pointer; border-style: solid; border-color: var(--near); }
+button.hint:hover { background: var(--panel); }
+.hint.open { border-style: solid; border-color: var(--line); background: var(--panel); }
+.hint.open span { color: var(--ink); }
+
+/* Guess boards */
+.guesses { display: grid; gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+.card.win { border: 2px solid var(--near); }
+.card-head { display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-wrap: wrap; text-align: center; }
+.card-head .k { color: var(--ink-soft); font-size: .85rem; }
+.card-head .nm { font: 800 1.35rem/1.1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tile { border: 0; border-radius: var(--radius); min-height: 74px; padding: 7px 4px; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px; text-align: center; cursor: pointer; min-width: 0; }
+.tile .lab { font: 600 .66rem/1 var(--body); letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.tile .val { font: 800 1.12rem/1.05 var(--display); font-stretch: condensed; letter-spacing: .02em; text-transform: uppercase;
+  overflow-wrap: break-word; hyphens: auto; font-variant-numeric: tabular-nums; max-width: 100%; }
+.tile .val.sm { font-size: .98rem; }
+.tile .val.xs { font-size: .86rem; letter-spacing: 0; }
+.tile .val.big { font-size: 1.45rem; white-space: nowrap; }
+.tile .val.big.sm { font-size: 1.24rem; }
+.tile .arr { font-size: .9em; margin-left: 2px; }
+.tile.green { background: var(--hit); color: var(--hit-ink); }
+.tile.gold { background: var(--near); color: var(--near-ink); }
+.tile.grey { background: var(--miss); color: var(--miss-ink); }
+.tile.dashed { background: transparent; color: var(--ink-soft); box-shadow: inset 0 0 0 1.5px var(--dash-line); outline-offset: 2px; }
+.tile[aria-expanded="true"] { box-shadow: inset 0 0 0 3px var(--ink); }
+.tile.dashed[aria-expanded="true"] { box-shadow: inset 0 0 0 3px var(--ink); }
+.explain { background: var(--panel-2); border-radius: 6px; padding: 9px 11px; font-size: .9rem; }
+.explain b { font-weight: 700; }
+.fresh .tile { animation: flip .42s cubic-bezier(.2,.7,.3,1) both; animation-delay: calc(var(--i) * 70ms); }
+@keyframes flip { from { transform: rotateX(-88deg); opacity: .2; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fresh .tile { animation: none; } .chev { transition: none; } }
+
+/* In-page result line (after the game) */
+.result-bar { display: grid; gap: 10px; justify-items: center; text-align: center; padding-block: 4px; }
+.result-bar .verdict { font: 900 2rem/1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.result-bar .verdict.won { color: var(--hit); }
+.result-bar .verdict.lost { color: var(--ball); }
+.result-bar p { margin: 0; color: var(--ink-soft); }
+
+/* Result pop-up: a scoreboard board in both themes */
+dialog.sheet { width: min(36rem, calc(100% - 20px)); max-width: none; max-height: calc(100% - 24px); margin: auto auto max(10px, env(safe-area-inset-bottom, 0px));
+  padding: 0; border: 0; border-radius: 26px; background: var(--board); color: var(--board-ink); overflow-y: auto; overscroll-behavior: contain;
+  box-shadow: 0 -12px 44px rgb(0 0 0 / .45), inset 0 0 0 1px rgb(255 255 255 / .07); }
+@media (min-width: 640px) { dialog.sheet { margin: auto; } }
+dialog.sheet::backdrop { background: rgb(4 12 8 / .6); }
+dialog.sheet[open] { animation: rise .34s cubic-bezier(.2,.8,.2,1); }
+@keyframes rise { from { transform: translateY(48px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { dialog.sheet[open] { animation: none; } }
+.sheet-in { position: relative; padding: 22px 18px 18px; display: grid; gap: 20px;
+  background: radial-gradient(120% 55% at 50% 0%, rgb(255 255 255 / .08), transparent 70%); }
+.sheet-close { position: absolute; top: 14px; right: 14px; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  border: 1px solid rgb(255 255 255 / .16); background: var(--board-2); color: var(--board-ink); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.sheet-head { text-align: center; display: grid; gap: 6px; padding-inline: 48px; }
+.sheet-head h2 { font: 900 2.4rem/1 var(--display); letter-spacing: .01em; outline: none; }
+.kicker { font: 800 1.1rem/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--near); }
+.kicker.lost { color: #f08a7f; }
+.answer { display: grid; grid-template-columns: 108px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ph { width: 108px; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; background: var(--board-2); display: grid; place-items: center; }
+.ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ph .init { font: 900 2.2rem/1 var(--display); color: var(--board-soft); letter-spacing: .02em; }
+.answer .was { color: var(--board-soft); font-size: .95rem; margin: 0; }
+.answer .who { font: 900 1.9rem/1.02 var(--display); text-transform: uppercase; letter-spacing: .01em; margin: 2px 0 6px; overflow-wrap: break-word; }
+.answer .meta { color: var(--board-soft); margin: 0; line-height: 1.5; }
+.answer .wiki { display: inline-block; margin-top: 8px; color: var(--near); font-weight: 600; font-size: 1.05rem; text-decoration: underline;
+  text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.credit { margin: 8px 0 0; font-size: .74rem; line-height: 1.5; color: var(--board-soft); }
+.credit a { color: inherit; }
+.sstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: center; }
+.sstats b { display: block; font: 900 2.6rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.sstats span { color: var(--board-soft); font-size: .92rem; }
+.sheet .note { text-align: center; color: var(--board-soft); font-size: .92rem; margin: -6px 0 0; }
+.crowd { display: grid; gap: 8px; }
+.crowd h3 { text-align: center; font: 700 1.08rem/1.2 var(--body); text-transform: none; letter-spacing: 0; }
+.histo { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 5px; align-items: end; height: 132px; }
+.histo .col { display: flex; flex-direction: column; justify-content: flex-end; gap: 5px; height: 100%; text-align: center; min-width: 0; }
+.histo .n { font-size: .8rem; color: var(--board-soft); font-variant-numeric: tabular-nums; }
+.histo .hbar { display: block; background: var(--board-2); border-radius: 5px 5px 2px 2px; min-height: 5px; }
+.histo .col.me .hbar { background: var(--hit); }
+.histo .col.me .n { color: var(--board-ink); font-weight: 700; }
+.histo-x { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 5px; text-align: center; color: var(--board-soft); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.histo-x .me { color: var(--board-ink); font-weight: 700; }
+.crowd-sum { margin: 0; color: var(--board-soft); font-size: .92rem; }
+.crowd-sum b { color: var(--near); }
+.crowd-note { margin: 0; color: var(--board-soft); font-size: .78rem; }
+.sharebar { display: flex; gap: 8px; }
+.sbtn { flex: 1 1 0; min-width: 0; min-height: 50px; border: 0; border-radius: 14px; padding: 12px 6px; font-weight: 700; font-size: 1rem; cursor: pointer;
+  text-decoration: none; display: flex; align-items: center; justify-content: center; text-align: center; }
+.sbtn.share { background: var(--near); color: var(--near-ink); }
+.sbtn.wa { background: var(--hit); color: #fff; }
+.sbtn.x { background: #070b08; color: #fff; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .18); }
+.sbtn.story { background: linear-gradient(100deg, #d4602c, var(--ball) 55%, #7a2347); color: #fff; }
+.sheet-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; }
+.sheet-foot button { background: none; border: 0; padding: 0; color: var(--board-ink); font-size: 1rem; cursor: pointer; text-decoration: underline;
+  text-decoration-color: var(--board-soft); text-underline-offset: 5px; }
+.sheet-foot .next { color: var(--board-soft); }
+.sheet-foot .next b { color: var(--board-ink); font: 800 1.3rem/1 var(--display); letter-spacing: .06em; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.toast { margin: -10px 0 0; min-height: 1.3em; text-align: center; color: var(--near); font-size: .9rem; }
+.sheet .copybox { background: var(--board-2); color: var(--board-ink); border-color: rgb(255 255 255 / .16); }
+.promos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.promo { display: flex; gap: 12px; align-items: center; padding: 14px; border-radius: 18px; background: rgb(255 255 255 / .04);
+  border: 1px solid rgb(255 255 255 / .1); color: var(--board-ink); cursor: pointer; text-align: left; min-width: 0; }
+.promo:hover { background: rgb(255 255 255 / .08); }
+.promo svg { width: 42px; height: 42px; flex: none; }
+.promo small { display: block; color: var(--board-soft); font-size: .85rem; line-height: 1.2; }
+.promo b { display: block; font: 800 1.2rem/1.1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+@media (max-width: 420px) {
+  .sheet-in { padding: 20px 14px 14px; gap: 18px; }
+  .sheet-head h2 { font-size: 2.1rem; }
+  .answer { grid-template-columns: 92px minmax(0, 1fr); gap: 13px; }
+  .ph { width: 92px; }
+  .answer .who { font-size: 1.65rem; }
+  .sstats b { font-size: 2.2rem; }
+  .sbtn { font-size: .92rem; padding-inline: 4px; }
+  .histo { gap: 3px; } .histo-x { gap: 3px; }
+  .promo { padding: 12px 10px; gap: 9px; } .promo svg { width: 34px; height: 34px; } .promo b { font-size: 1.05rem; }
+}
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.btn { border: 0; border-radius: 8px; padding: 12px 18px; font-weight: 700; cursor: pointer; background: var(--board); color: var(--board-ink); }
+.btn.alt { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--line); }
+.btn.gold { background: var(--near); color: var(--near-ink); }
+.muted { color: var(--ink-soft); }
+.small { font-size: .85rem; }
+.copybox { width: 100%; min-height: 8rem; font: 400 .9rem/1.4 ui-monospace, Menlo, Consolas, monospace; padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); }
+.countdown { font: 800 1.5rem/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: .05em; }
+
+/* Stats */
+.statgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; text-align: center; }
+.stat b { display: block; font: 800 1.9rem/1 var(--display); font-variant-numeric: tabular-nums; }
+.stat span { font-size: .75rem; color: var(--ink-soft); }
+.dist { display: grid; gap: 4px; }
+.dist-row { display: grid; grid-template-columns: 4.5rem 1fr; gap: 8px; align-items: center; font-size: .85rem; }
+.dist-bar { background: var(--miss); color: var(--miss-ink); border-radius: 3px; padding: 2px 6px; min-width: 1.6rem; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dist-bar.hit { background: var(--hit); color: var(--hit-ink); }
+
+/* How to play + archive */
+.prose { display: grid; gap: 12px; }
+.prose p, .prose ul { margin: 0; max-width: 65ch; }
+.prose ul { padding-left: 1.2rem; display: grid; gap: 6px; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 4px; font-weight: 700; font-size: .9em; }
+.chip.green { background: var(--hit); color: var(--hit-ink); }
+.chip.gold { background: var(--near); color: var(--near-ink); }
+.chip.grey { background: var(--miss); color: var(--miss-ink); }
+.chip.dashed { box-shadow: inset 0 0 0 1.5px var(--dash-line); }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font: 800 .95rem/1 var(--display); text-transform: uppercase; letter-spacing: .05em; }
+td:first-child { font-weight: 700; white-space: nowrap; }
+.arch { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.arch li { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; }
+.arch .t { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.arch .t b { font: 800 1.15rem/1.1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+
+.state { text-align: center; padding: 40px 0; color: var(--ink-soft); }
+footer { max-width: 40rem; margin: 0 auto; padding-block: 18px 30px; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: .8rem; text-align: center;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+footer p { margin: 4px 0; }
+
+@media (max-width: 420px) {
+  .tile { min-height: 68px; padding: 6px 2px; }
+  .tile .val { font-size: 1.02rem; }
+  .tile .val.sm { font-size: .9rem; }
+  .tile .val.xs { font-size: .78rem; }
+  .tile .val.big { font-size: 1.3rem; }
+  .tile .val.big.sm { font-size: 1.08rem; }
+  .tile .lab { font-size: .6rem; letter-spacing: .05em; }
+  .statgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- website additions ---------- */
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; min-height: 100vh; }
+.banner { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--near); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; }
+.banner p { margin: 0; }
+.banner.err { border-left-color: var(--ball); }
+.guessbox input:disabled { opacity: .65; }
+.guessbox .pending { position: absolute; right: 14px; top: 44px; font-size: .85rem; color: var(--ink-soft); }
+.snack { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+  max-width: min(32rem, calc(100% - 32px)); background: var(--ink); color: var(--bg); padding: 12px 16px; border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / .3); font-weight: 600; text-align: center; }
+.snack[hidden] { display: none; }
+
+/* leaderboard */
+.tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: var(--panel-2); padding: 4px; border-radius: 10px; }
+.tabs button { border: 0; background: none; border-radius: 7px; padding: 9px 4px; font-weight: 700; font-size: .9rem; cursor: pointer; color: var(--ink-soft); }
+.tabs button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.board { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.board li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.board li:last-child { border-bottom: 0; }
+.board .rk { font: 800 1.2rem/1 var(--display); color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: center; }
+.board .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board .sub { display: block; font-size: .78rem; color: var(--ink-soft); font-weight: 400; }
+.board .pts { font: 800 1.35rem/1 var(--display); font-variant-numeric: tabular-nums; text-align: right; }
+.board .pts small { display: block; font: 400 .7rem/1.2 var(--body); color: var(--ink-soft); text-transform: none; }
+.board li.me { background: color-mix(in srgb, var(--near) 18%, var(--panel)); }
+.board li.gap { display: block; text-align: center; padding: 4px; color: var(--ink-soft); background: var(--panel-2); }
+.board li.top1 .rk { color: var(--near); }
+.namebox { display: flex; gap: 8px 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.namebox form { display: flex; gap: 8px; flex: 1 1 100%; flex-wrap: wrap; }
+.namebox input { flex: 1 1 12rem; min-width: 0; padding: 10px 12px; border: 2px solid var(--line); border-radius: 8px; background: var(--bg); }
+.namebox .err { flex-basis: 100%; color: var(--ball); font-size: .88rem; margin: 0; }
+.hof { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.hof section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; align-content: start; }
+.hof h3 { font-size: 1.05rem; }
+.hof ol { margin: 0; padding-left: 1.4rem; display: grid; gap: 4px; font-size: .9rem; }
+.hof li.me { font-weight: 700; }
+.hof li span { color: var(--ink-soft); }
+.hof .none { color: var(--ink-soft); font-size: .88rem; margin: 0; }
+@media (max-width: 520px) { .hof { grid-template-columns: 1fr; } .tabs button { font-size: .82rem; } }
+
+/* account */
+.account { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; }
+.account p { margin: 0; }
+.gbtn { display: inline-flex; align-items: center; gap: 10px; border: 1px solid var(--line); background: #fff; color: #1f1f1f; border-radius: 22px;
+  padding: 9px 16px 9px 12px; font-weight: 600; cursor: pointer; justify-self: start; }
+.gbtn svg { width: 20px; height: 20px; }
+.sheet .gbtn { justify-self: center; }
+.danger { background: none; border: 0; color: var(--ball); text-decoration: underline; cursor: pointer; padding: 0; justify-self: start; font-weight: 600; }
+.confirm { border: 1px solid var(--ball); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; }
+.btn.red { background: var(--ball); color: #fff; }
+.rankline { margin: -8px 0 0; text-align: center; color: var(--board-soft); font-size: .92rem; }
+.rankline b { color: var(--board-ink); }
+.rankline button { background: none; border: 0; padding: 0; color: var(--near); text-decoration: underline; cursor: pointer; font-weight: 600; }
+.sheet .note button { background: none; border: 0; padding: 0; color: var(--near); text-decoration: underline; cursor: pointer; font-weight: 600; font-size: inherit; }
+.arch .crowdline { color: var(--ink-soft); }
+footer nav { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+footer nav a { color: var(--ink); text-decoration-color: var(--near); text-decoration-thickness: 2px; text-underline-offset: 3px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="bar-wrap">
+    <div class="bar-in">
+      <button class="brand" id="home" type="button" aria-label="Cricle, today's puzzle">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="var(--ball)"/><path d="M9 4.8c3.4 3 5.2 6.8 5.2 11.2S12.4 24.2 9 27.2M23 4.8c-3.4 3-5.2 6.8-5.2 11.2s1.8 8.2 5.2 11.2" fill="none" stroke="var(--board-ink)" stroke-width="1.4" stroke-dasharray="1.6 1.6" opacity=".9"/></svg>
+        <b>Cricle</b>
+      </button>
+      <button class="menu-btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">Menu <span class="chev">▼</span></button>
+    </div>
+    <div class="menu" id="menu" hidden>
+      <button type="button" data-go="play">Today's cricketer</button>
+      <button type="button" data-go="leaderboard">Leaderboard</button>
+      <button type="button" data-go="practice">Practice round</button>
+      <button type="button" data-go="archive">Past answers</button>
+      <button type="button" data-go="stats">Your stats and account</button>
+      <button type="button" data-go="how">How to play</button>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <div class="state" id="loading">Loading the players…</div>
+  <section class="view" id="view-play" hidden></section>
+  <section class="view" id="view-leaderboard" hidden></section>
+  <section class="view" id="view-archive" hidden></section>
+  <section class="view" id="view-stats" hidden></section>
+  <section class="view" id="view-how" hidden></section>
+</main>
+
+<footer>
+  <p>Every men's Test, ODI and T20I player for the twelve Test nations, plus ODI players from 13 associate nations.</p>
+  <p id="dataLine">Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet.</p>
+  <p>Not affiliated with or endorsed by the ICC, any cricket board, team or player.</p>
+  <nav><a href="privacy.html">Privacy</a><button type="button" class="link" data-go="how">How to play</button></nav>
+</footer>
+
+<dialog class="sheet" id="result" aria-labelledby="resultTitle"></dialog>
+<div class="snack" id="snack" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/supabase-2.117.2.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+"use strict";
+
+// ===== LOGIC START (mirrors the tile rules in pipeline/build_players.py and supabase/schema.sql) =====
+const TILES = ["country", "role", "bats", "bowls", "debut", "matches", "runs", "wickets"];
+const CATEGORY_TILES = ["country", "role", "bats", "bowls"];
+
+function totalMatches(p) {
+  if (p.tests == null || p.odis == null || p.t20is == null) return null;
+  return p.tests + p.odis + p.t20is;
+}
+function bandOk(diff, answer, pct, min) { return diff <= Math.max(answer * pct / 100, min); }
+function numericColour(tile, g, a, bands) {
+  if (g == null || a == null) return "dashed";
+  const diff = Math.abs(g - a), b = bands[tile];
+  if (tile === "debut") return diff <= b.green_years ? "green" : diff <= b.gold_years ? "gold" : "grey";
+  if (bandOk(diff, a, b.green_pct, b.green_min)) return "green";
+  if (bandOk(diff, a, b.gold_pct, b.gold_min)) return "gold";
+  return "grey";
+}
+function categoryColour(tile, g, a, D) {
+  if (tile === "country") {
+    if (!g.countries.length || !a.countries.length) return "dashed";
+    if (g.countries.some(c => a.countries.includes(c))) return "green";
+    const ra = new Set(a.countries.map(c => D.region[c]).filter(Boolean));
+    return g.countries.some(c => ra.has(D.region[c])) ? "gold" : "grey";
+  }
+  const gv = g[tile], av = a[tile];
+  if (gv == null || av == null) return "dashed";
+  if (gv === av) return "green";
+  if (tile === "role") return Math.abs(D.role_order.indexOf(gv) - D.role_order.indexOf(av)) === 1 ? "gold" : "grey";
+  if (tile === "bowls") return D.bowl_family[gv] === D.bowl_family[av] && D.bowl_family[gv] !== "None" ? "gold" : "grey";
+  return "grey";
+}
+// What the country tile can say without giving the answer away: the shared countries, or the shared region.
+function countryDetail(colour, g, a, D) {
+  if (colour === "green") return g.countries.filter(c => a.countries.includes(c));
+  if (colour === "gold") return D.region[g.countries.find(c => D.region[c] && a.countries.some(x => D.region[x] === D.region[c]))];
+  return undefined;
+}
+function tileValue(p, tile) { return tile === "matches" ? totalMatches(p) : p[tile]; }
+function arrowFor(g, a) { return g == null || a == null || g === a ? "" : a > g ? "up" : "down"; }
+function compare(g, a, D) {
+  return TILES.map(tile => {
+    if (!CATEGORY_TILES.includes(tile))
+      return { tile, colour: numericColour(tile, tileValue(g, tile), tileValue(a, tile), D.bands), arrow: arrowFor(tileValue(g, tile), tileValue(a, tile)) };
+    const r = { tile, colour: categoryColour(tile, g, a, D), arrow: "" };
+    if (tile === "country") { const d = countryDetail(r.colour, g, a, D); if (d !== undefined) r.detail = d; }
+    return r;
+  });
+}
+// Ten guesses, ten wickets: each wrong guess is a wicket down. Solved on guess n = won by 11 - n wickets.
+function wicketsInHand(guessCount, won) { return won ? 11 - guessCount : 0; }
+function normName(s) {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function search(players, q, exclude, limit = 8) {
+  const nq = normName(q);
+  if (!nq) return [];
+  const qt = nq.split(" "), squash = nq.replace(/ /g, "");
+  const hits = [];
+  for (const p of players) {
+    if (exclude.has(p.id)) continue;
+    let score;
+    if (p.key.startsWith(nq)) score = 0;
+    else if (qt.every(t => p.tokens.some(w => w.startsWith(t)))) score = 1;
+    else if (p.key.includes(nq) || p.squash.includes(squash)) score = 2;
+    else continue;
+    hits.push([score, p]);
+  }
+  hits.sort((x, y) => x[0] - y[0] || y[1].fame - x[1].fame || x[1].name.localeCompare(y[1].name));
+  return hits.slice(0, limit).map(h => h[1]);
+}
+// ===== LOGIC END =====
+
+const CONFIG = window.CRICLE_CONFIG || {};
+const EMOJI = { green: "🟩", gold: "🟧", grey: "⬛", dashed: "⬜" };
+const LABEL = { country: "Country", role: "Role", bats: "Bats", bowls: "Bowls", debut: "Debut", matches: "Matches", runs: "Runs", wickets: "Wickets" };
+const ROLE_NAME = { "Keeper": "Wicket-keeper", "Batter": "Batter", "Batting AR": "Batting all-rounder", "Bowling AR": "Bowling all-rounder", "Bowler": "Bowler" };
+const SHORT_COUNTRY = { "United Arab Emirates": "UAE", "United States": "USA", "Papua New Guinea": "PNG", "East Africa": "E. Africa" };
+const UNIT = { runs: "runs", wickets: "wickets", matches: "matches" };
+const CLAIM_KEY = "cricle:claim";
+const NAME_ERRORS = { name_length: "Use 3 to 18 characters.", name_chars: "Letters, numbers, spaces and . _ ' - only.",
+  name_rude: "Please pick a different name.", name_taken: "Someone already has that name." };
+
+const S = {
+  D: null, players: [], byId: new Map(),
+  sb: null, server: "loading", serverError: "", user: null, me: null,
+  today: null, launch: null, clockOffset: 0, cfg: { max_guesses: 10, hint_at: [5, 7], miss_score: 12 },
+  game: null, practice: null, view: "play", open: {}, freshAt: -1, pending: false,
+  stats: null, boards: {}, boardTab: "today", editingName: false, nameError: "", archive: null, credits: null,
+  crowd: null, rank: null, confirmDelete: false,
+};
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = n => n == null ? "?" : Number(n).toLocaleString("en-GB");
+const plural = (n, w, ws = w + "s") => `${fmt(n)} ${n === 1 ? w : ws}`;
+const ordinal = n => { const s = ["th", "st", "nd", "rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+const countryText = cs => cs.length ? cs.map(c => SHORT_COUNTRY[c] || c).join(" / ") : "?";
+const dayDate = day => { const [y, m, d] = S.launch.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + day)); };
+const dateText = day => dayDate(day).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
+                del(k) { try { localStorage.removeItem(k); } catch { /* private mode */ } } };
+
+/* ---------- data ---------- */
+function hydrate(D) {
+  const ci = Object.fromEntries(D.cols.map((c, i) => [c, i]));
+  S.players = D.players.map(r => {
+    const p = { id: r[ci.id], name: r[ci.name], countries: r[ci.countries], role: r[ci.role], bats: r[ci.bats], bowls: r[ci.bowls],
+      debut: r[ci.debut], tests: r[ci.tests], odis: r[ci.odis], t20is: r[ci.t20is], runs: r[ci.runs], wickets: r[ci.wickets], pool: !!r[ci.pool] };
+    p.matches = totalMatches(p);
+    p.fame = (p.tests || 0) + (p.odis || 0) + (p.t20is || 0);
+    p.key = normName(p.name); p.tokens = p.key.split(" "); p.squash = p.key.replace(/ /g, "");
+    const x = D.extra[p.id];
+    if (x) p.extra = { testBat: x[0], testBowl: x[1], teams: x[2] || [], wiki: x[3], born: x[4], last: x[5], photo: !!x[6] };
+    return p;
+  });
+  S.byId = new Map(S.players.map(p => [p.id, p]));
+  S.D = D;
+}
+// A player as the server describes them (facts only; the answer also carries its hint data and links)
+function fromFacts(v, isAnswer) {
+  const p = { id: v.id, name: v.name, countries: v.countries || [], role: v.role, bats: v.bats, bowls: v.bowls, debut: v.debut,
+    tests: v.tests, odis: v.odis, t20is: v.t20is, runs: v.runs, wickets: v.wickets };
+  p.matches = totalMatches(p);
+  if (isAnswer) {
+    const local = S.byId.get(v.id);
+    p.extra = { testBat: v.test_bat, testBowl: v.test_bowl, teams: v.teams || [], wiki: v.wiki, born: v.born, last: v.last,
+      photo: !!(local && local.extra && local.extra.photo) };
+  }
+  return p;
+}
+function dailyFromServer(g) {
+  return { kind: "daily", day: g.day, rows: g.guesses.map(x => ({ p: fromFacts(x.v), res: x.tiles })), hints: g.hints,
+    done: g.done, won: g.won, points: g.points, answer: g.answer ? fromFacts(g.answer, true) : null };
+}
+function hintData(a, k) {
+  const x = a.extra || { teams: [] };
+  return k === 0 ? { tests: a.tests, test_bat: x.testBat, test_bowl: x.testBowl } : { teams: x.teams || [] };
+}
+function newPractice(answerId) {
+  if (answerId == null) {
+    const skip = S.game && S.game.answer ? S.game.answer.id : null;
+    const pool = S.players.filter(p => p.pool && p.id !== skip);
+    answerId = pool[Math.floor(Math.random() * pool.length)].id;
+  }
+  const a = S.byId.get(answerId);
+  S.practice = { kind: "practice", answer: a, rows: [], done: false, won: false,
+    hints: S.cfg.hint_at.map((at, k) => ({ k, at, open: false, data: hintData(a, k) })) };
+  S.open = {};
+}
+
+/* ---------- server ---------- */
+async function call(fn, args) {
+  const { data, error } = await S.sb.rpc(fn, args || {});
+  if (error) throw error;
+  return data;
+}
+function errText(e) { return (e && (e.hint || e.message || e.error_description)) || String(e); }
+function handleError(e) {
+  const m = (e && e.message) || "";
+  if (m === "day_over") { snack("A new cricketer is out. Loading it now…"); setTimeout(() => location.reload(), 1500); return; }
+  if (/fetch|network|load failed|timeout/i.test(m)) snack("Couldn't reach the game server. Check your connection and try again.");
+  else snack("Something went wrong (" + errText(e) + "). Try again in a moment.");
+}
+
+async function connect() {
+  if (!CONFIG.supabaseUrl || !CONFIG.supabaseKey || !window.supabase) {
+    S.server = "off"; S.serverError = "The daily game isn't connected to its server yet."; return;
+  }
+  const url = new URL(location.href);
+  const authError = url.searchParams.get("error_description") || url.searchParams.get("error");
+  S.sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey, {
+    auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "cricle-auth" },
+  });
+  try {
+    let { data: { session } } = await S.sb.auth.getSession();
+    if (["code", "error", "error_description", "error_code", "state"].some(k => url.searchParams.has(k))) {
+      ["code", "error", "error_description", "error_code", "state"].forEach(k => url.searchParams.delete(k));
+      history.replaceState(null, "", url.pathname + (url.search || "") + url.hash);
+    }
+    if (authError) { snack(/cancel|denied/i.test(authError) ? "Google sign-in was cancelled." : "Google sign-in didn't work: " + authError); store.del(CLAIM_KEY); }
+    if (!session) {
+      const { data, error } = await S.sb.auth.signInAnonymously();
+      if (error) throw error;
+      session = data.session;
+    }
+    S.user = session.user;
+    await redeemClaim();
+    await loadState();
+    S.server = "on";
+  } catch (e) {
+    S.server = "off";
+    S.serverError = /rate limit|too many/i.test(errText(e)) ? "Lots of people are joining from your network right now. Try again in a few minutes."
+      : "Today's game couldn't load (" + errText(e) + ").";
+  }
+}
+async function loadState() {
+  const st = await call("game_state");
+  S.today = st.today; S.launch = st.launch; S.me = st.me;
+  S.cfg = { max_guesses: st.max_guesses, hint_at: st.hint_at, miss_score: st.miss_score };
+  S.clockOffset = Date.parse(st.now) - Date.now();
+  S.game = st.game ? dailyFromServer(st.game) : null;
+}
+async function redeemClaim() {
+  const claim = store.get(CLAIM_KEY);
+  if (!claim) return;
+  if (S.user.is_anonymous) { if (Date.now() - claim.at > 3600e3) store.del(CLAIM_KEY); return; }
+  store.del(CLAIM_KEY);
+  try {
+    const r = await call("redeem_claim", { p_token: claim.tok });
+    snack(r.moved ? `Signed in. ${plural(r.moved, "game")} from this device ${r.moved === 1 ? "is" : "are"} now on your account.` : "Signed in with Google.");
+  } catch { snack("Signed in with Google."); }
+}
+async function signIn() {
+  try {
+    if (S.user && S.user.is_anonymous) store.set(CLAIM_KEY, { tok: await call("create_claim"), at: Date.now() });
+    const { error } = await S.sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
+    if (error) throw error;
+  } catch (e) { store.del(CLAIM_KEY); snack("Couldn't start Google sign-in (" + errText(e) + ")."); }
+}
+async function signOut() {
+  try { await S.sb.auth.signOut(); } catch { /* signed out locally anyway */ }
+  location.replace(location.pathname);
+}
+async function deleteData() {
+  try { await call("delete_my_account"); } catch (e) { handleError(e); return; }
+  try { await S.sb.auth.signOut({ scope: "local" }); } catch { /* account already gone */ }
+  store.del(CLAIM_KEY);
+  location.replace(location.pathname);
+}
+
+/* ---------- explanations (built from the same bands as the colours) ---------- */
+function bandText(tile, which) {
+  const b = S.D.bands[tile];
+  if (tile === "debut") return which === "green" ? "the same year" : `${b.gold_years} years`;
+  const pct = b[which + "_pct"], min = b[which + "_min"];
+  return min ? `${pct}% (or ${fmt(min)} ${UNIT[tile]})` : `${pct}%`;
+}
+function explainTile(r, g) {
+  const D = S.D;
+  if (r.colour === "dashed") return "We don't have this fact for one of the two players, so this tile tells you nothing.";
+  switch (r.tile) {
+    case "country":
+      if (r.colour === "green") return `Played for ${(r.detail || g.countries).join(" and ")}, same as the answer.`;
+      if (r.colour === "gold") return `Different country, but the answer also comes from ${r.detail || "the same region"}.`;
+      return "The answer played for a country in a different region.";
+    case "role": {
+      const order = D.role_order.map(x => ROLE_NAME[x].toLowerCase()).join(", ");
+      if (r.colour === "green") return "Same role as the answer.";
+      if (r.colour === "gold") return `One step away from the answer's role. The order is ${order}.`;
+      return `Not close to the answer's role. The order is ${order}.`;
+    }
+    case "bats":
+      return r.colour === "green" ? "Bats with the same hand as the answer." : "The answer bats with the other hand.";
+    case "bowls":
+      if (r.colour === "green") return g.bowls === "Doesn't bowl" ? "The answer doesn't bowl either." : "Same bowling style as the answer.";
+      if (r.colour === "gold") return `The answer is also a ${D.bowl_family[g.bowls] === "Pace" ? "pace bowler" : "spinner"}, of a different kind.`;
+      return g.bowls === "Doesn't bowl" ? "The answer bowls." : "Not the same bowling style, and not the same family (pace or spin) either.";
+    case "debut": {
+      const dir = r.arrow === "up" ? " The answer made their international debut later." : r.arrow === "down" ? " The answer made their international debut earlier." : "";
+      if (r.colour === "green") return "Same year of international debut as the answer.";
+      if (r.colour === "gold") return `Debut within ${bandText("debut", "gold")} of the answer's.${dir}`;
+      return `More than ${bandText("debut", "gold")} away from the answer's debut.${dir}`;
+    }
+    default: {
+      const t = r.tile, what = { matches: "international matches", runs: "international runs", wickets: "international wickets" }[t];
+      const dir = r.arrow === "up" ? " The answer has more." : r.arrow === "down" ? " The answer has fewer." : " Exactly the same.";
+      const split = t === "matches" ? ` This player: ${fmt(g.tests)} Tests, ${fmt(g.odis)} ODIs, ${fmt(g.t20is)} T20Is.` : "";
+      if (r.colour === "green") return `Within ${bandText(t, "green")} of the answer's ${what}.${dir}${split}`;
+      if (r.colour === "gold") return `Within ${bandText(t, "gold")} of the answer's ${what}.${dir}${split}`;
+      return `More than ${bandText(t, "gold")} away from the answer's ${what}.${dir}${split}`;
+    }
+  }
+}
+function tileDisplay(p, tile) {
+  switch (tile) {
+    case "country": return countryText(p.countries);
+    case "role": return p.role ? ROLE_NAME[p.role] : "?";
+    case "bats": return p.bats === "R" ? "Right" : p.bats === "L" ? "Left" : "?";
+    case "bowls": return p.bowls || "?";
+    case "debut": return p.debut ?? "?";
+    default: return fmt(tileValue(p, tile));
+  }
+}
+function hintText(k, d) {
+  if (!d) return "";
+  if (k === 0) {
+    if (!d.tests) return "Hasn't played a Test.";
+    const bat = d.test_bat != null ? `batting ${Number(d.test_bat).toFixed(2)}` : "batting average not listed";
+    const bowl = d.test_bowl != null ? `bowling ${Number(d.test_bowl).toFixed(2)}` : "no Test wickets";
+    return `Test averages: ${bat}, ${bowl}.`;
+  }
+  return d.teams && d.teams.length ? `Top teams outside internationals: ${d.teams.join(", ")}.` : "No domestic or franchise teams listed.";
+}
+const hintsUsed = game => game.hints.filter(h => h.open).length;
+
+/* ---------- rendering: the game ---------- */
+function cardHTML(game, row, n, fresh) {
+  const g = row.p, res = row.res, won = game.won && n === game.rows.length;
+  const openTile = S.open[`${game.kind}:${n}`];
+  const tiles = res.map((r, k) => {
+    const v = tileDisplay(g, r.tile), num = ["debut", "matches", "runs", "wickets"].includes(r.tile);
+    const words = String(v).split(/[\s-]+/), longest = Math.max(...words.map(w => w.length));
+    const size = num ? (String(v).length >= 6 ? "big sm" : "big") : longest >= 10 ? "xs" : longest >= 8 || String(v).length >= 15 ? "sm" : "";
+    const arr = r.arrow ? `<span class="arr" aria-hidden="true">${r.arrow === "up" ? "↑" : "↓"}</span>` : "";
+    const sr = r.arrow ? (r.arrow === "up" ? ", answer is higher" : ", answer is lower") : "";
+    return `<button type="button" class="tile ${r.colour}" style="--i:${k}" data-card="${n}" data-tile="${r.tile}"
+      aria-expanded="${openTile === r.tile}" aria-label="${LABEL[r.tile]} ${esc(v)}, ${r.colour === "gold" ? "close" : r.colour === "grey" ? "not close" : r.colour === "green" ? "match" : "unknown"}${sr}">
+      <span class="lab">${LABEL[r.tile]}</span><span class="val ${size}">${esc(v)}${arr}</span></button>`;
+  }).join("");
+  const exp = openTile ? `<div class="explain"><b>${LABEL[openTile]}.</b> ${esc(explainTile(res.find(r => r.tile === openTile), g))}</div>` : "";
+  return `<article class="card${won ? " win" : ""}${fresh ? " fresh" : ""}">
+    <div class="card-head"><span class="k">Guess ${n}</span><span class="nm">${esc(g.name)}</span></div>
+    <div class="tiles">${tiles}</div>${exp}</article>`;
+}
+
+function siteLink() {
+  if (CONFIG.siteUrl) return CONFIG.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return (location.host + location.pathname.replace(/index\.html$/, "")).replace(/\/$/, "");
+}
+function shareText(game) {
+  const n = game.rows.length, wk = wicketsInHand(n, true);
+  const head = game.kind === "daily" ? `Cricle #${game.day + 1}` : "Cricle practice";
+  const res = game.won ? `won by ${wk} wicket${wk === 1 ? "" : "s"}` : "all out";
+  const bulbs = "💡".repeat(hintsUsed(game));
+  const grid = game.rows.map(r => r.res.map(x => EMOJI[x.colour]).join("")).join("\n");
+  return `${head} · ${res}${bulbs ? " " + bulbs : ""}\n${grid}\n${siteLink()}`;
+}
+function verdictParts(game) {
+  const n = game.rows.length, hints = hintsUsed(game), wk = wicketsInHand(n, game.won);
+  const title = game.won ? `Got it in ${n}!` : "All out!";
+  const hintTxt = hints ? ` · ${plural(hints, "hint")}` : "";
+  const kicker = (game.kind === "practice" ? "Practice · " : "") + (game.won ? `Won by ${wk} wicket${wk === 1 ? "" : "s"}` : "10 wickets down") + hintTxt;
+  return { title, kicker, wk };
+}
+function resultBarHTML(game) {
+  const { wk } = verdictParts(game), n = game.rows.length;
+  return `<section class="result-bar">
+    <div class="verdict ${game.won ? "won" : "lost"}">${game.won ? `Won by ${wk} wicket${wk === 1 ? "" : "s"}` : "All out"}</div>
+    <p>${game.won ? `Solved in ${plural(n, "guess", "guesses")}.` : `The answer was ${esc(game.answer.name)}.`}</p>
+    <button class="btn gold" type="button" id="showResult" data-act="show-result">Show result</button>
+  </section>`;
+}
+
+function renderPlay() {
+  const view = $("#view-play");
+  if (S.view !== "practice" && S.server !== "on") { view.innerHTML = offlineHTML(); return; }
+  if (S.view !== "practice" && !S.game) { view.innerHTML = notStartedHTML(); return; }
+  const game = S.view === "practice" ? S.practice : S.game;
+  const n = game.rows.length, isDaily = game.kind === "daily";
+  const down = game.won ? n - 1 : n;
+  const pips = Array.from({ length: S.cfg.max_guesses }, (_, k) => `<span class="wkt${k < down ? " down" : ""}"></span>`).join("");
+  const scoreLine = game.done ? (game.won ? `Solved in ${n}` : "All out") : `${down} down, ${S.cfg.max_guesses - down} in hand`;
+  const hintHTML = game.hints.map(h => {
+    const title = h.k === 0 ? "Test averages" : "Teams";
+    if ((h.open || game.done) && h.data) return `<div class="hint open"><b>${title}</b><span>${esc(hintText(h.k, h.data))}</span></div>`;
+    if (n >= h.at && !game.done) return `<button type="button" class="hint" data-act="hint" data-k="${h.k}"><b>Show hint: ${title}</b><span>Adds a 💡 and a point to your score</span></button>`;
+    return `<div class="hint"><b>${title}</b><span>Unlocks after ${h.at} guesses</span></div>`;
+  }).join("");
+  const cards = game.rows.map((row, k) => ({ row, n: k + 1 })).reverse().map(({ row, n: num }) => cardHTML(game, row, num, num === S.freshAt)).join("");
+  view.innerHTML = `
+    ${S.view === "practice" && S.today != null && S.today < 0 ? `<p class="banner">Daily #1 starts ${dateText(0)}. Have a practice round until then.</p>` : ""}
+    <div class="head">
+      <h1>${isDaily ? "Who's today's cricketer?" : "Practice round"}</h1>
+      <p class="lede">${isDaily ? "Every day there's a new international cricketer to find. " : "Doesn't count towards your stats or the leaderboard. "}Ten guesses, one for each wicket. Green is a match, orange is close, and arrows point to the answer. <button type="button" class="link" data-go="how">How to play</button></p>
+    </div>
+    <div class="plate">
+      <div class="plate-top"><div class="plate-title">${isDaily ? `Daily #${game.day + 1}` : "Practice"}<small>${isDaily ? dateText(game.day) : "not counted"}</small></div>
+      <div class="score">${scoreLine}</div></div>
+      <div class="wkts" aria-label="${down} of ${S.cfg.max_guesses} wickets down">${pips}</div>
+    </div>
+    ${game.done ? resultBarHTML(game) : `
+    <div class="guessbox">
+      <label for="guessInput">Guess a player</label>
+      <input id="guessInput" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Start typing a name, e.g. Kallis"
+        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg">
+      <span class="pending" id="pending" hidden>Checking…</span>
+      <ul class="sugg" id="sugg" role="listbox" hidden></ul>
+    </div>`}
+    <div class="hints">${hintHTML}</div>
+    <div class="guesses">${cards || `<p class="muted small" style="text-align:center;margin:0">Your guesses show up here, newest on top. Tap any tile to see what it means.</p>`}</div>`;
+  S.freshAt = -1;
+  if (!game.done) wireInput(game); else startCountdown();
+}
+function offlineHTML() {
+  return `<div class="head"><h1>Who's today's cricketer?</h1></div>
+    <div class="banner err"><p>${esc(S.serverError || "Today's game couldn't load.")}</p>
+    <div class="row"><button class="btn" type="button" data-act="retry">Try again</button><button class="btn alt" type="button" data-go="practice">Play a practice round</button></div></div>`;
+}
+function notStartedHTML() {
+  return `<div class="head"><h1>Cricle starts soon</h1><p class="lede">${S.launch ? `Daily #1 is ${dateText(0)}.` : "The first daily cricketer is on its way."} Until then, have a practice round.</p></div>
+    <div class="row" style="justify-content:center"><button class="btn gold" type="button" data-go="practice">Play a practice round</button></div>`;
+}
+
+function wireInput(game) {
+  const input = $("#guessInput"), list = $("#sugg");
+  let items = [], sel = 0;
+  const exclude = new Set(game.rows.map(r => r.p.id));
+  const show = () => {
+    items = search(S.players, input.value, exclude);
+    sel = 0;
+    if (!input.value.trim()) { list.hidden = true; input.setAttribute("aria-expanded", "false"); return; }
+    list.innerHTML = items.length ? items.map((p, k) => `<li role="option" id="opt${k}" data-id="${p.id}" aria-selected="${k === sel}">
+        <span class="n">${esc(p.name)}</span><span class="m">${esc(countryText(p.countries))} · ${p.debut ?? "?"}</span></li>`).join("")
+      : `<li class="empty" aria-disabled="true">No player matches “${esc(input.value.trim())}”</li>`;
+    list.hidden = false; input.setAttribute("aria-expanded", "true");
+    input.setAttribute("aria-activedescendant", items.length ? "opt0" : "");
+  };
+  const move = d => {
+    if (!items.length) return;
+    sel = (sel + d + items.length) % items.length;
+    list.querySelectorAll("li").forEach((li, k) => li.setAttribute("aria-selected", k === sel));
+    input.setAttribute("aria-activedescendant", "opt" + sel);
+    list.children[sel].scrollIntoView({ block: "nearest" });
+  };
+  input.addEventListener("input", show);
+  input.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+    else if (e.key === "Enter") { e.preventDefault(); if (items[sel]) makeGuess(game, items[sel].id); }
+    else if (e.key === "Escape") { list.hidden = true; input.setAttribute("aria-expanded", "false"); }
+  });
+  list.addEventListener("mousedown", e => e.preventDefault());
+  list.addEventListener("click", e => { const li = e.target.closest("li[data-id]"); if (li) makeGuess(game, Number(li.dataset.id)); });
+  if (game.rows.length && window.matchMedia("(hover: hover)").matches) input.focus({ preventScroll: true });
+}
+
+async function makeGuess(game, id) {
+  if (game.done || S.pending || game.rows.some(r => r.p.id === id)) return;
+  if (game.kind === "practice") {
+    const g = S.byId.get(id);
+    game.rows.push({ p: g, res: compare(g, game.answer, S.D) });
+    if (id === game.answer.id) game.done = game.won = true;
+    else if (game.rows.length >= S.cfg.max_guesses) game.done = true;
+    return afterGuess(game);
+  }
+  S.pending = true;
+  const input = $("#guessInput"), list = $("#sugg");
+  if (input) { input.disabled = true; list.hidden = true; $("#pending").hidden = false; }
+  try {
+    S.game = dailyFromServer(await call("make_guess", { p_day: game.day, p_player: id }));
+    S.pending = false;
+    S.stats = null; S.boards = {};
+    afterGuess(S.game);
+  } catch (e) {
+    S.pending = false;
+    renderPlay();
+    handleError(e);
+  }
+}
+function afterGuess(game) {
+  S.freshAt = game.rows.length;
+  renderPlay();
+  if (game.done) {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+    setTimeout(() => openResult(game), still ? 0 : 1000);   // let the last tiles turn over first
+  }
+}
+async function openHint(game, k) {
+  if (game.kind === "practice") { game.hints[k].open = true; renderPlay(); return; }
+  try { S.game = dailyFromServer(await call("open_hint", { p_day: game.day, p_hint: k })); renderPlay(); }
+  catch (e) { handleError(e); }
+}
+
+/* ---------- result pop-up ---------- */
+function careerLine(a) {
+  const x = a.extra || {};
+  const span = a.debut ? `${a.debut}${x.last && x.last !== a.debut ? "–" + x.last : ""}` : "";
+  const fmts = [[a.tests, "Test"], [a.odis, "ODI"], [a.t20is, "T20I"]].filter(([n]) => n).map(([n, w]) => `${fmt(n)} ${w}${n === 1 ? "" : "s"}`);
+  return [a.countries.join(" and "), ROLE_NAME[a.role] || "", span, fmts.join(", "), `${fmt(a.runs)} runs`, `${fmt(a.wickets)} wickets`].filter(Boolean).join(" · ");
+}
+const initials = name => name.split(/[\s-]+/).filter(w => /^[A-Za-zÀ-ÿ]/.test(w)).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+const shorten = (t, n) => t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
+const GOOGLE_G = `<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>`;
+const googleButton = (label = "Sign in with Google") => `<button type="button" class="gbtn" data-act="signin">${GOOGLE_G}<span>${label}</span></button>`;
+
+function sheetHTML(game) {
+  const a = game.answer, x = a.extra || {}, isDaily = game.kind === "daily";
+  const { title, kicker } = verdictParts(game);
+  const text = shareText(game);
+  const wiki = x.wiki ? `https://en.wikipedia.org/wiki/${encodeURIComponent(x.wiki)}` : null;
+  const iconList = `<svg viewBox="0 0 42 42" aria-hidden="true"><rect x="2" y="2" width="38" height="38" rx="10" fill="var(--board-2)"/><path d="M12 14h18M12 21h18M12 28h12" stroke="var(--near)" stroke-width="3" stroke-linecap="round"/></svg>`;
+  const iconBall = `<svg viewBox="0 0 42 42" aria-hidden="true"><circle cx="21" cy="21" r="18" fill="var(--ball)"/><path d="M12 7c4.4 3.9 6.7 8.8 6.7 14.5S16.4 32.1 12 36M30 7c-4.4 3.9-6.7 8.8-6.7 14.5S25.6 32.1 30 36" fill="none" stroke="var(--board-ink)" stroke-width="1.6" stroke-dasharray="2 2"/></svg>`;
+  const iconCup = `<svg viewBox="0 0 42 42" aria-hidden="true"><rect x="2" y="2" width="38" height="38" rx="10" fill="var(--board-2)"/><path d="M14 11h14v6a7 7 0 0 1-14 0zM14 13h-3a4 4 0 0 0 4 5M28 13h3a4 4 0 0 1-4 5M21 24v5M16 31h10" fill="none" stroke="var(--near)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return `<div class="sheet-in">
+    <button class="sheet-close" type="button" data-act="close-result" aria-label="Close results and go back to the game">×</button>
+    <div class="sheet-head"><h2 id="resultTitle" tabindex="-1">${title}</h2><div class="kicker${game.won ? "" : " lost"}">${esc(kicker)}</div></div>
+    <div class="answer">
+      <div class="ph" id="sheetPhoto"><span class="init" aria-hidden="true">${esc(initials(a.name))}</span></div>
+      <div>
+        <p class="was">The answer was</p>
+        <div class="who">${esc(a.name)}</div>
+        <p class="meta">${esc(careerLine(a))}</p>
+        ${wiki ? `<a class="wiki" href="${wiki}" target="_blank" rel="noopener">Read on Wikipedia</a>` : ""}
+        <p class="credit"><span id="photoCredit"></span>${wiki ? `<a href="${wiki}" target="_blank" rel="noopener">Player stats from Wikipedia (CC BY-SA 4.0)</a>` : ""}</p>
+      </div>
+    </div>
+    ${isDaily ? `<div class="sstats" id="sheetStats">${sheetStatsHTML()}</div>
+    <p class="note">${S.me && S.me.guest ? `Playing as a guest, so your record is on this device only. <button type="button" data-act="signin">Sign in with Google</button> to keep it on every device.`
+      : "Signed in. Your record follows you to any device."}</p>
+    <section class="crowd" id="crowd" aria-live="polite">${crowdHTML(game)}</section>
+    <p class="rankline" id="rankLine">${rankHTML()}</p>` : ""}
+    <div class="sharebar">
+      <button class="sbtn share" type="button" data-act="share">Share</button>
+      <a class="sbtn wa" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">WhatsApp</a>
+      <a class="sbtn x" href="https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}" target="_blank" rel="noopener" aria-label="Share on X">X</a>
+      ${isDaily ? `<button class="sbtn story" type="button" data-act="story">Story</button>` : ""}
+    </div>
+    <p class="toast" id="sheetToast" aria-live="polite"></p>
+    <div id="copyOut" hidden></div>
+    <div class="sheet-foot">
+      <button type="button" data-act="spoilers">Share with spoilers</button>
+      ${isDaily ? `<span class="next">Next cricketer in<b data-countdown>--:--:--</b></span>`
+                : `<button type="button" data-act="practice-again">Another practice round</button>`}
+    </div>
+    <div class="promos">
+      ${isDaily ? `<button type="button" class="promo" data-go="leaderboard">${iconCup}<span><small>See where you rank on the</small><b>Leaderboard</b></span></button>
+      <button type="button" class="promo" data-go="practice">${iconBall}<span><small>Keep batting with a</small><b>Practice round</b></span></button>`
+      : `<button type="button" class="promo" data-act="practice-again">${iconBall}<span><small>Bat again with</small><b>Another round</b></span></button>
+      <button type="button" class="promo" data-go="play">${iconList}<span><small>Back to</small><b>Today's cricketer</b></span></button>`}
+    </div>
+  </div>`;
+}
+function sheetStatsHTML() {
+  const st = S.stats, v = k => st ? st[k] : "–";
+  return `<div><b>${v("played")}</b><span>Played</span></div>
+    <div><b>${st ? (st.played ? Math.round(st.wins / st.played * 100) : 0) : "–"}</b><span>Win %</span></div>
+    <div><b>${v("current_streak")}</b><span>Streak</span></div>
+    <div><b>${v("best_streak")}</b><span>Best</span></div>`;
+}
+let sheetTimer = 0;
+function openResult(game) {
+  const dlg = $("#result");
+  S.sheetGame = game;
+  dlg.innerHTML = sheetHTML(game);
+  if (!dlg.open) { try { dlg.showModal(); } catch { dlg.setAttribute("open", ""); } }
+  dlg.scrollTop = 0;
+  const h = $("#resultTitle"); if (h) h.focus({ preventScroll: true });
+  startCountdown();
+  showPhoto(game.answer);
+  if (game.kind === "daily") {
+    refreshSheet(game, true);
+    clearInterval(sheetTimer);
+    sheetTimer = setInterval(() => { if (dlg.open && document.visibilityState === "visible") refreshSheet(game, false); }, 30000);
+  }
+}
+async function refreshSheet(game, withStats) {
+  try {
+    const [crowd, board, stats] = await Promise.all([call("day_stats", { p_day: game.day }), call("leaderboard", { p_period: "today", p_limit: 1 }),
+      withStats || !S.stats ? call("my_stats") : Promise.resolve(S.stats)]);
+    S.crowd = crowd; S.rank = board; S.stats = stats;
+    if (S.sheetGame !== game) return;
+    const c = $("#crowd"), r = $("#rankLine"), s = $("#sheetStats");
+    if (c) c.innerHTML = crowdHTML(game);
+    if (r) r.innerHTML = rankHTML();
+    if (s) s.innerHTML = sheetStatsHTML();
+  } catch { /* keep what's showing */ }
+}
+function closeResult() {
+  const dlg = $("#result");
+  clearInterval(sheetTimer);
+  if (dlg.open) dlg.close();
+}
+
+/* ---------- photos (Wikimedia Commons, credited) ---------- */
+async function showPhoto(a) {
+  if (!a.extra || !a.extra.photo) return;
+  try {
+    S.credits = S.credits || fetch("photos/credits.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    const ph = (await S.credits)[a.id];
+    const box = $("#sheetPhoto"), credit = $("#photoCredit");
+    if (!ph || !box || !S.sheetGame || S.sheetGame.answer.id !== a.id) return;
+    const img = new Image();
+    img.alt = `Photo of ${a.name}`;
+    img.width = 240; img.height = 300;
+    img.onload = () => box.replaceChildren(img);
+    img.src = `photos/${a.id}.jpg`;
+    const link = (href, label) => href ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>` : esc(label);
+    credit.innerHTML = `Photo: ${link(ph.desc_url, shorten(ph.artist, 34))}, ${link(ph.license_url, ph.license)}${ph.cropped ? " (cropped)" : ""}<br>`;
+  } catch { S.credits = null; }
+}
+
+/* ---------- how everyone did today ---------- */
+function crowdHTML(game) {
+  const mine = game.won ? game.rows.length : 11;
+  const counts = S.crowd && S.crowd.day === game.day ? S.crowd.counts.slice() : Array(11).fill(0);
+  if (!S.crowd || S.crowd.mine == null) counts[mine - 1]++;   // not counted yet: include me
+  const total = counts.reduce((x, y) => x + y, 0), solved = total - counts[10];
+  const avg = solved ? counts.slice(0, 10).reduce((acc, c, k) => acc + c * (k + 1), 0) / solved : 0;
+  const worse = counts.slice(mine).reduce((x, y) => x + y, 0), same = counts[mine - 1];
+  const beat = total > 1 ? (worse + (same - 1) / 2) / (total - 1) : null;
+  const max = Math.max(1, ...counts);
+  const cols = counts.map((c, k) => `<div class="col${k === mine - 1 ? " me" : ""}"><span class="n">${fmt(c)}</span>
+    <span class="hbar" style="height:${Math.max(5, Math.round(c / max * 96))}px"></span></div>`).join("");
+  const xs = counts.map((_, k) => `<span class="${k === mine - 1 ? "me" : ""}">${k < 10 ? k + 1 : "✗"}</span>`).join("");
+  const pct = v => `${Math.round(v * 100)}%`;
+  const beatTxt = beat == null ? "you're the first to finish today" : `you beat ${pct(beat)}`;
+  const sum = `${plural(total, "player")} · ${pct(solved / total)} solved · average ${solved ? avg.toFixed(1) : "–"} guesses · <b>${beatTxt}</b>`;
+  return `<h3>How everyone did today (so far)</h3>
+    <div class="histo" role="img" aria-label="Results today: ${counts.map((c, k) => `${c} ${k < 10 ? "in " + (k + 1) : "all out"}`).join(", ")}">${cols}</div>
+    <div class="histo-x" aria-hidden="true">${xs}</div>
+    <p class="crowd-sum">${S.crowd ? sum : "Counting today's results…"}</p>`;
+}
+function rankHTML() {
+  const me = S.rank && S.rank.me;
+  if (!me) return "";
+  return `You're <b>${ordinal(me.rank)}</b> of ${fmt(S.rank.players)} on today's leaderboard, as ${esc(me.name)}. <button type="button" data-go="leaderboard">See the leaderboard</button>`;
+}
+
+/* ---------- story image (1080 x 1920, no spoilers) ---------- */
+async function storyBlob(game) {
+  const W = 1080, H = 1920, c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const DISP = '"Big Shoulders Display", "Arial Narrow", sans-serif', BODY = '"Public Sans", system-ui, sans-serif';
+  try { await Promise.all([document.fonts.load(`900 120px ${DISP}`), document.fonts.load(`600 40px ${BODY}`)]); } catch { /* fallback fonts */ }
+  const C = { ink: "#f3f1e7", soft: "#a9bdae", ball: "#c8382f", hit: "#26803f", near: "#ef9f2f", miss: "#2b4234", dash: "#5f776a", slot: "#21402b" };
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#1f3f2a"); bg.addColorStop(1, "#0c1d13");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.textAlign = "center";
+  const fit = (text, weight, size, family, maxW) => { let s2 = size; g.font = `${weight} ${s2}px ${family}`;
+    while (g.measureText(text).width > maxW && s2 > 20) { s2 -= 4; g.font = `${weight} ${s2}px ${family}`; } };
+  g.fillStyle = C.ball; g.beginPath(); g.arc(W / 2, 220, 74, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = C.ink; g.lineWidth = 4; g.setLineDash([9, 9]);
+  for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(W / 2 + sx * 34, 160); g.quadraticCurveTo(W / 2 + sx * 4, 220, W / 2 + sx * 34, 280); g.stroke(); }
+  g.setLineDash([]);
+  g.fillStyle = C.ink; fit("CRICLE", 900, 170, DISP, 900); g.fillText("CRICLE", W / 2, 470);
+  const dl = `Daily #${game.day + 1} · ${dateText(game.day)}`;
+  g.fillStyle = C.soft; fit(dl, 600, 46, BODY, 940); g.fillText(dl, W / 2, 550);
+  const { wk } = verdictParts(game), hints = hintsUsed(game);
+  const vt = game.won ? `WON BY ${wk} WICKET${wk === 1 ? "" : "S"}` : "ALL OUT";
+  g.fillStyle = game.won ? C.near : "#f08a7f"; fit(vt, 900, 112, DISP, 960);
+  g.fillText(vt, W / 2, 690);
+  if (hints) { g.fillStyle = C.soft; g.font = `600 40px ${BODY}`; g.fillText(`${hints} hint${hints === 1 ? "" : "s"} used`, W / 2, 750); }
+  const down = game.won ? game.rows.length - 1 : game.rows.length, slotW = 72, gap = 12, x0 = (W - (10 * slotW + 9 * gap)) / 2, y0 = 790;
+  for (let k = 0; k < 10; k++) {
+    const x = x0 + k * (slotW + gap);
+    g.fillStyle = k < down ? "rgba(255,255,255,0.04)" : C.slot; g.beginPath(); g.roundRect(x, y0, slotW, 70, 10); g.fill();
+    g.fillStyle = k < down ? C.ball : C.ink;
+    for (let s = 0; s < 3; s++) { g.save(); g.translate(x + 22 + s * 14, y0 + 58); if (k < down) g.rotate(0.32); g.fillRect(-3, -44, 6, 44); g.restore(); }
+  }
+  const sq = 78, sg = 12, gx = (W - (8 * sq + 7 * sg)) / 2;
+  const blockH = game.rows.length * (sq + sg) - sg, gy = Math.round(900 + Math.max(0, (900 - blockH) / 2));
+  game.rows.forEach((row, r) => row.res.forEach((res, k) => {
+    const x = gx + k * (sq + sg), y = gy + r * (sq + sg);
+    g.beginPath(); g.roundRect(x, y, sq, sq, 12);
+    if (res.colour === "dashed") { g.strokeStyle = C.dash; g.lineWidth = 4; g.stroke(); }
+    else { g.fillStyle = { green: C.hit, gold: C.near, grey: C.miss }[res.colour]; g.fill(); }
+  }));
+  const ft = siteLink();
+  g.fillStyle = C.soft; fit(ft, 600, 46, BODY, 940); g.fillText(ft, W / 2, 1860);
+  return new Promise(res => c.toBlob(res, "image/png"));
+}
+async function saveStory(game) {
+  toast("Making your story image…");
+  try {
+    const blob = await storyBlob(game);
+    const file = new File([blob], `cricle-${game.day + 1}.png`, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] }) && matchMedia("(pointer: coarse)").matches) {
+      try { await navigator.share({ files: [file] }); toast(""); return; } catch (e) { if (e && e.name === "AbortError") { toast(""); return; } }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast("Saved. Post it to your story from your photos or downloads.");
+  } catch { toast("Couldn't make the image. Try again in a moment."); }
+}
+
+/* ---------- leaderboard ---------- */
+const TABS = [["today", "Today"], ["week", "This week"], ["month", "This month"], ["fame", "Hall of fame"]];
+async function loadBoard(tab, force) {
+  const hit = S.boards[tab];
+  if (hit && !force && Date.now() - hit.at < 30000) return;
+  try {
+    const data = tab === "fame" ? await call("hall_of_fame") : await call("leaderboard", { p_period: tab, p_limit: 100 });
+    S.boards[tab] = { at: Date.now(), data };
+  } catch (e) { S.boards[tab] = { at: Date.now(), error: errText(e) }; }
+}
+function renderLeaderboard() {
+  const v = $("#view-leaderboard");
+  if (S.server !== "on") { v.innerHTML = `<div class="head"><h2>Leaderboard</h2></div>${offlineHTML().replace(/<div class="head">.*?<\/div>/, "")}`; return; }
+  const tab = S.boardTab, entry = S.boards[tab];
+  const nameBox = S.editingName
+    ? `<div class="namebox"><form id="nameForm"><label class="small" for="nameInput" style="flex-basis:100%">Your name on the leaderboard</label>
+        <input id="nameInput" maxlength="18" value="${esc(S.me.nickname)}" autocomplete="nickname">
+        <button class="btn" type="submit">Save</button><button class="btn alt" type="button" data-act="rename-cancel">Cancel</button>
+        ${S.nameError ? `<p class="err" role="alert">${esc(S.nameError)}</p>` : ""}</form></div>`
+    : `<div class="namebox"><span>You're on the board as <b>${esc(S.me.nickname)}</b>${S.me.auto_name ? " (picked for you)" : ""}.</span>
+        <button type="button" class="link" data-act="rename">Change name</button></div>`;
+  const tabs = `<div class="tabs" role="tablist">${TABS.map(([k, label]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === tab}">${label}</button>`).join("")}</div>`;
+  let body = `<p class="state">Loading…</p>`;
+  if (entry && entry.error) body = `<div class="banner err"><p>Couldn't load the leaderboard (${esc(entry.error)}).</p></div>`;
+  else if (entry && tab === "fame") body = hallHTML(entry.data);
+  else if (entry) body = boardHTML(entry.data, tab);
+  v.innerHTML = `<div class="head"><h2>Leaderboard</h2>
+      <p class="lede">Lower is better. Each day scores the guesses you took plus any hints, or ${S.cfg.miss_score} if you're all out. The week and month add up every day so far, and a day you didn't play counts as ${S.cfg.miss_score}.</p></div>
+    ${nameBox}${tabs}<div id="boardBody">${body}</div>`;
+  if (S.editingName) { const i = $("#nameInput"); i.focus(); i.select(); }
+  if (!entry || Date.now() - entry.at >= 30000) loadBoard(tab).then(() => { if (S.view === "leaderboard" && S.boardTab === tab) renderLeaderboard(); });
+}
+function boardHTML(d, tab) {
+  if (!d.rows.length) return `<p class="state">${tab === "today" ? "No one has finished today's game yet. Be the first." : "No results yet for this period."}</p>`;
+  const period = tab !== "today";
+  const row = (r, extra = "") => `<li class="${r.me ? "me" : ""}${r.rank === 1 ? " top1" : ""}${extra}"><span class="rk">${r.rank}</span>
+      <span class="nm">${esc(r.name)}${r.me ? " (you)" : ""}<span class="sub">${period ? `${r.played} of ${d.days} day${d.days === 1 ? "" : "s"} played, ${r.won} won` : r.won ? "Solved" : "All out"}</span></span>
+      <span class="pts">${r.points}<small>${r.points === 1 ? "point" : "points"}</small></span></li>`;
+  const shown = d.rows.map(r => row(r)).join("");
+  const meShown = d.rows.some(r => r.me);
+  const meRow = d.me && !meShown ? `<li class="gap">…</li>${row(d.me)}` : "";
+  const range = period ? `<p class="small muted" style="margin:0;text-align:center">${dateText(d.from_day)} to ${dateText(d.to_day)} · ${plural(d.players, "player")}</p>` : `<p class="small muted" style="margin:0;text-align:center">${plural(d.players, "player")} so far today</p>`;
+  const nudge = !d.me && S.game && !S.game.done && tab === "today" ? `<p class="small muted" style="margin:0;text-align:center">Finish today's game to get on the board.</p>` : "";
+  return `${range}<ol class="board">${shown}${meRow}</ol>${nudge}`;
+}
+function hallHTML(d) {
+  const list = (title, rows, unit, none) => `<section><h3>${title}</h3>${rows.length
+    ? `<ol>${rows.map(r => `<li class="${r.me ? "me" : ""}">${esc(r.name)}${r.me ? " (you)" : ""} <span>· ${unit(r)}</span></li>`).join("")}</ol>`
+    : `<p class="none">${none}</p>`}</section>`;
+  return `<div class="hof">
+    ${list("Longest winning streak", d.streaks, r => plural(r.value, "day"), "No streaks yet.")}
+    ${list("Most wins", d.wins, r => plural(r.value, "win"), "No wins yet.")}
+    ${list("Best average score", d.average, r => `${Number(r.value).toFixed(2)} over ${r.games} games`, `Needs ${d.min_games} finished games. Keep playing.`)}
+    ${list("Weeks won", d.weeks, r => plural(r.value, "week"), "The first week's winner appears once it's over.")}
+  </div>`;
+}
+async function saveName(name) {
+  try {
+    const r = await call("set_nickname", { p_name: name });
+    S.me.nickname = r.nickname; S.me.auto_name = false; S.editingName = false; S.nameError = ""; S.boards = {};
+    snack("Name saved.");
+  } catch (e) { S.nameError = NAME_ERRORS[e.message] || errText(e); }
+  renderLeaderboard();
+}
+
+/* ---------- stats and account ---------- */
+async function renderStats() {
+  const v = $("#view-stats");
+  if (S.server !== "on") { v.innerHTML = `<div class="head"><h2>Your stats</h2></div>${offlineHTML().replace(/<div class="head">.*?<\/div>/, "")}`; return; }
+  if (!S.stats) {
+    v.innerHTML = `<div class="head"><h2>Your stats</h2></div><p class="state">Loading…</p>`;
+    try { S.stats = await call("my_stats"); } catch (e) { v.innerHTML = `<div class="head"><h2>Your stats</h2></div><div class="banner err"><p>${esc(errText(e))}</p></div>`; return; }
+    if (S.view !== "stats") return;
+  }
+  const st = S.stats, max = Math.max(1, ...st.dist);
+  const g = S.game, mineIdx = g && g.done ? (g.won ? g.rows.length - 1 : 10) : -1;
+  const rows = st.dist.map((c, k) => `<div class="dist-row"><span>${k < 10 ? `${k + 1} guess${k ? "es" : ""}` : "All out"}</span>
+    <span><span class="dist-bar${mineIdx === k ? " hit" : ""}" style="display:inline-block;width:${Math.max(8, Math.round(c / max * 100))}%">${c}</span></span></div>`).join("");
+  const email = S.user && S.user.email;
+  const account = S.me.guest
+    ? `<p>You're playing as a guest. Your record is kept on this device only, so clearing your browser or changing phone would lose it.</p>
+       <p>Sign in with Google to keep it on every device. Your games so far come with you. Only your leaderboard name is ever shown to other players.</p>${googleButton()}`
+    : `<p>Signed in with Google${email ? ` as <b>${esc(email)}</b>` : ""}. Your record follows you to any device you sign in on. Other players only ever see your leaderboard name.</p>
+       <button class="btn alt" type="button" data-act="signout" style="justify-self:start">Sign out</button>`;
+  const del = S.confirmDelete
+    ? `<div class="confirm"><p>This deletes your results, your leaderboard name and your ${S.me.guest ? "guest " : ""}account. It can't be undone.</p>
+        <div class="row"><button class="btn red" type="button" data-act="delete-yes">Delete everything</button><button class="btn alt" type="button" data-act="delete-no">Cancel</button></div></div>`
+    : `<button class="danger" type="button" data-act="delete">Delete my data</button>`;
+  v.innerHTML = `<div class="head"><h2>Your stats</h2><p class="lede">Daily games only. Practice rounds don't count.</p></div>
+    <div class="statgrid">
+      <div class="stat"><b>${st.played}</b><span>Played</span></div>
+      <div class="stat"><b>${st.played ? Math.round(st.wins / st.played * 100) : 0}%</b><span>Won</span></div>
+      <div class="stat"><b>${st.current_streak}</b><span>Current streak</span></div>
+      <div class="stat"><b>${st.best_streak}</b><span>Best streak</span></div>
+    </div>
+    <h3>Guesses needed</h3><div class="dist">${rows}</div>
+    ${st.avg_points != null ? `<p class="small muted" style="margin:0">Average leaderboard score: <b>${Number(st.avg_points).toFixed(2)}</b> a day (lower is better).</p>` : ""}
+    <h3>Your account</h3>
+    <div class="account">${account}${del}</div>`;
+}
+
+/* ---------- past answers ---------- */
+async function renderArchive() {
+  const v = $("#view-archive");
+  if (S.server !== "on") { v.innerHTML = `<div class="head"><h2>Past answers</h2></div>${offlineHTML().replace(/<div class="head">.*?<\/div>/, "")}`; return; }
+  if (!S.archive) {
+    v.innerHTML = `<div class="head"><h2>Past answers</h2></div><p class="state">Loading…</p>`;
+    try { S.archive = await call("past_answers", { p_limit: 400 }); } catch (e) { v.innerHTML = `<div class="head"><h2>Past answers</h2></div><div class="banner err"><p>${esc(errText(e))}</p></div>`; return; }
+    if (S.view !== "archive") return;
+  }
+  const items = S.archive.map(x => {
+    const m = x.mine;
+    const you = m ? (m.won ? `You: won by ${plural(wicketsInHand(m.n, true), "wicket")}${m.hints ? " " + "💡".repeat(m.hints) : ""}` : "You: all out") : "Not played";
+    const crowd = x.players ? `${plural(x.players, "player")} · ${Math.round(x.solved / x.players * 100)}% solved${x.avg != null ? ` · average ${Number(x.avg).toFixed(1)} guesses` : ""}` : "No one played";
+    const canReplay = S.byId.has(x.id);
+    return `<li><div class="t"><b>#${x.day + 1} · ${esc(x.name)}</b><span class="small muted">${dateText(x.day)}</span></div>
+      <span class="small">${esc(countryText(x.countries))} · ${esc(ROLE_NAME[x.role] || "?")} · ${fmt(x.matches)} international matches</span>
+      <span class="small crowdline">${crowd}</span>
+      <div class="row small"><span class="muted">${you}</span>${canReplay ? `<button type="button" class="link" data-act="replay" data-id="${x.id}">Play it as practice</button>` : ""}</div></li>`;
+  });
+  v.innerHTML = `<div class="head"><h2>Past answers</h2><p class="lede">Every daily answer so far, newest first. Today's appears here once the next cricketer unlocks at midnight UTC.</p></div>
+    ${items.length ? `<ul class="arch">${items.join("")}</ul>` : `<p class="state" style="padding:20px 0">No past answers yet. They show up here from the day after Daily #1.</p>`}`;
+}
+
+/* ---------- how to play ---------- */
+function renderHow() {
+  const D = S.D, b = D.bands, ms = S.cfg.miss_score;
+  const rule = (t, w) => `Within ${bandText(t, w)}`;
+  const regions = {};
+  Object.entries(D.region).forEach(([c, r]) => (regions[r] = regions[r] || []).push(c));
+  $("#view-how").innerHTML = `<div class="head"><h2>How to play</h2></div>
+    <div class="prose">
+      <p>Every day there's a new mystery international cricketer, and everyone gets the same one. Type a name, pick it from the list, and each guess shows how close that player is to the answer.</p>
+      <p>You have ten guesses, one for each wicket. Every wrong guess is a wicket down. Get it on your fourth guess and you've won by 7 wickets. Ten wrong guesses and you're all out.</p>
+      <p>The answer is always a men's international who played for a Test nation, made their international debut in ${D.pool_rule.min_debut} or later and has played at least ${D.pool_rule.min_matches} international matches (Tests, ODIs and T20Is added together). You can still guess any player.</p>
+      <ul>
+        <li><span class="chip green">Green</span> means a match.</li>
+        <li><span class="chip gold">Orange</span> means close.</li>
+        <li><span class="chip grey">Grey</span> means not close.</li>
+        <li><span class="chip dashed">Dashed</span> means we don't have that fact for one of the two players, so the tile tells you nothing.</li>
+        <li>↑ / ↓ means the answer's number is higher / lower.</li>
+        <li>Not sure what a tile means? Tap it to see it in words.</li>
+      </ul>
+      <h3>Hints</h3>
+      <p>Two optional hints, each adding a 💡 to your shared result and a point to your leaderboard score: the answer's Test batting and bowling averages after ${S.cfg.hint_at[0]} guesses, and their top three teams outside internationals after ${S.cfg.hint_at[1]}.</p>
+      <h3>The clues</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th scope="col">Tile</th><th scope="col">Green</th><th scope="col">Orange</th></tr></thead>
+        <tbody>
+          <tr><td>Country</td><td>Played for the same country (players who switched countries count for both)</td><td>Same region: ${Object.keys(regions).join(", ")}</td></tr>
+          <tr><td>Role</td><td>Same role</td><td>Next to it on: wicket-keeper, batter, batting all-rounder, bowling all-rounder, bowler</td></tr>
+          <tr><td>Bats</td><td>Same hand</td><td>Not used</td></tr>
+          <tr><td>Bowls</td><td>Same style: right-arm pace, left-arm pace, off-spin, leg-spin, left-arm spin, or doesn't bowl</td><td>Same family: both pace or both spin</td></tr>
+          <tr><td>Debut</td><td>Same year of international debut</td><td>Within ${b.debut.gold_years} years</td></tr>
+          <tr><td>Matches</td><td>${rule("matches", "green")} of the answer's Tests + ODIs + T20Is</td><td>${rule("matches", "gold")}</td></tr>
+          <tr><td>Runs</td><td>${rule("runs", "green")} of the answer's international runs</td><td>${rule("runs", "gold")}</td></tr>
+          <tr><td>Wickets</td><td>${rule("wickets", "green")} of the answer's international wickets</td><td>${rule("wickets", "gold")}</td></tr>
+        </tbody></table></div>
+      <p class="small muted">Percentages are of the answer's figure, so close means close for a tailender and for a great alike.</p>
+      <h3>Leaderboard</h3>
+      <p>Lower is better. Each day you score the number of guesses you took plus one for each hint, or ${ms} if you're all out. This week and this month add up every day so far, and a day you didn't play counts as ${ms}, so playing every day pays. The week runs Monday to Sunday. Practice rounds never count.</p>
+      <h3>Your record</h3>
+      <p>You can play straight away as a guest. Your record is kept on that device. Sign in with Google to keep it on every device; the games you've played as a guest come with you. Other players only see your leaderboard name, which you can change on the leaderboard. See <a href="privacy.html">privacy</a> for what's stored.</p>
+      <h3>About the data</h3>
+      <p>Countries, career numbers, roles, batting and bowling styles, debuts and teams come from English Wikipedia (CC BY-SA 4.0), with birth dates from Wikidata (CC0). Missing or out-of-date T20I figures are filled from Cricsheet. Role is Wikipedia's where it gives one; otherwise it's worked out from the player's runs and wickets per match. Photos are free-licensed images from Wikimedia Commons, credited under each one. Everything is refreshed every Monday.</p>
+      <p class="small muted">Data last updated ${new Date(D.wiki_fetched_utc || D.built_utc).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}.</p>
+    </div>`;
+}
+
+/* ---------- navigation ---------- */
+const VIEWS = ["play", "leaderboard", "archive", "stats", "how"];
+function show(view) {
+  closeResult();
+  if (view === "practice" && !S.practice) newPractice();
+  S.view = view;
+  VIEWS.forEach(v => { $("#view-" + v).hidden = !((v === "play" && (view === "play" || view === "practice")) || v === view); });
+  if (view === "play" || view === "practice") renderPlay();
+  if (view === "leaderboard") renderLeaderboard();
+  if (view === "archive") renderArchive();
+  if (view === "stats") renderStats();
+  if (view === "how") renderHow();
+  closeMenu();
+  const hash = view === "play" ? "" : "#" + view;
+  if (location.hash !== hash) history.replaceState(null, "", location.pathname + location.search + hash);
+  window.scrollTo({ top: 0 });
+}
+function closeMenu() { $("#menu").hidden = true; $("#menuBtn").setAttribute("aria-expanded", "false"); }
+function toast(msg) { const t = $("#sheetToast"); if (t) t.textContent = msg; }
+let snackTimer = 0;
+function snack(msg) {
+  const s = $("#snack");
+  s.textContent = msg; s.hidden = !msg;
+  clearTimeout(snackTimer); snackTimer = setTimeout(() => { s.hidden = true; }, 5000);
+}
+async function copyText(text, done) {
+  const out = $("#copyOut");
+  try {
+    await navigator.clipboard.writeText(text);
+    if (out) out.hidden = true;
+    toast(done);
+  } catch {
+    toast("");
+    if (!out) return;
+    out.hidden = false;
+    out.innerHTML = `<p class="small" style="margin:0 0 6px">Couldn't copy automatically. Select the text and copy it.</p><textarea class="copybox" id="copyText" readonly></textarea>`;
+    const ta = $("#copyText"); ta.value = text; ta.focus(); ta.select();
+  }
+}
+async function shareResult(text) {
+  if (navigator.share && matchMedia("(pointer: coarse)").matches) {
+    try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+  }
+  copyText(text, "Copied. Paste it anywhere.");
+}
+
+let countdownTimer = 0;
+function startCountdown() {
+  clearInterval(countdownTimer);
+  const tick = () => {
+    const els = document.querySelectorAll("[data-countdown]");
+    if (!els.length || S.today == null) { clearInterval(countdownTimer); return; }
+    const next = dayDate(S.today + 1).getTime();
+    const ms = next - (Date.now() + S.clockOffset);
+    if (ms <= 0) { clearInterval(countdownTimer); location.reload(); return; }
+    const h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = Math.floor(ms / 1000) % 60;
+    const txt = [h, m, s].map(v => String(v).padStart(2, "0")).join(":");
+    els.forEach(e => { e.textContent = txt; });
+  };
+  tick(); countdownTimer = setInterval(tick, 1000);
+}
+
+function wireGlobal() {
+  $("#menuBtn").addEventListener("click", e => {
+    const m = $("#menu"); m.hidden = !m.hidden; e.currentTarget.setAttribute("aria-expanded", String(!m.hidden));
+  });
+  document.addEventListener("submit", e => {
+    if (e.target.id === "nameForm") { e.preventDefault(); saveName($("#nameInput").value); }
+  });
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".bar-wrap")) closeMenu();
+    const go = e.target.closest("[data-go]");
+    if (go) {
+      if (go.dataset.go === "practice" && (!S.practice || S.practice.done)) newPractice();
+      show(go.dataset.go); return;
+    }
+    if (e.target.closest("#home")) { show("play"); return; }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) { S.boardTab = tab.dataset.tab; renderLeaderboard(); return; }
+    const tile = e.target.closest(".tile");
+    if (tile) {
+      const game = S.view === "practice" ? S.practice : S.game;
+      const k = `${game.kind}:${tile.dataset.card}`;
+      S.open[k] = S.open[k] === tile.dataset.tile ? undefined : tile.dataset.tile;
+      renderPlay(); return;
+    }
+    const act = e.target.closest("[data-act]");
+    if (!act) return;
+    const game = S.view === "practice" ? S.practice : S.game;
+    const sg = S.sheetGame || game;
+    switch (act.dataset.act) {
+      case "hint": openHint(game, Number(act.dataset.k)); break;
+      case "show-result": openResult(game); break;
+      case "close-result": closeResult(); break;
+      case "share": shareResult(shareText(sg)); break;
+      case "spoilers": copyText(`${shareText(sg)}\nIt was ${sg.answer.name}.`, "Copied, with the answer. Careful who you send it to."); break;
+      case "story": saveStory(sg); break;
+      case "practice-again": closeResult(); newPractice(); show("practice"); break;
+      case "replay": newPractice(Number(act.dataset.id)); show("practice"); break;
+      case "retry": location.reload(); break;
+      case "signin": signIn(); break;
+      case "signout": signOut(); break;
+      case "delete": S.confirmDelete = true; renderStats(); break;
+      case "delete-no": S.confirmDelete = false; renderStats(); break;
+      case "delete-yes": deleteData(); break;
+      case "rename": S.editingName = true; S.nameError = ""; renderLeaderboard(); break;
+      case "rename-cancel": S.editingName = false; S.nameError = ""; renderLeaderboard(); break;
+    }
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeMenu(); });
+  const dlg = $("#result");
+  dlg.addEventListener("click", e => { if (e.target === dlg) closeResult(); });   // tap outside the board
+  dlg.addEventListener("close", () => { clearInterval(sheetTimer); const b = $("#showResult"); if (b) b.focus({ preventScroll: true }); });
+  window.addEventListener("hashchange", () => {
+    const want = location.hash.slice(1);
+    const view = VIEWS.includes(want) || want === "practice" ? want : "play";
+    if (view === "practice" && (!S.practice || S.practice.done)) newPractice();
+    if (view !== S.view && S.D) show(view);
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || S.today == null || !S.launch) return;
+    if (Date.now() + S.clockOffset >= dayDate(S.today + 1).getTime()) location.reload();   // came back after midnight
+  });
+}
+
+async function start() {
+  wireGlobal();
+  try {
+    const res = await fetch("data/players.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error(res.status);
+    hydrate(await res.json());
+  } catch {
+    $("#loading").textContent = "Couldn't load the player list. Refresh the page to try again.";
+    return;
+  }
+  $("#loading").textContent = "Loading today's cricketer…";
+  await connect();
+  $("#loading").remove();
+  $("#dataLine").textContent = `Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet, updated ${new Date(S.D.wiki_fetched_utc || S.D.built_utc).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`;
+  const want = location.hash.slice(1);
+  if (S.server === "on" && S.today != null && S.today < 0) { newPractice(); show("practice"); return; }
+  show(VIEWS.includes(want) || want === "practice" ? want : "play");
+}
+
+start();
+})();
+</script>
+</body>
+</html>

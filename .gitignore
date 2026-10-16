@@ -1,0 +1,12 @@
+# build outputs and caches (out/ holds the private schedule: never commit it)
+pipeline/out/
+pipeline/cache/
+pipeline/data/
+__pycache__/
+*.pyc
+# local test stack
+dev/.run/
+dev/bin/
+node_modules/
+.DS_Store
+Thumbs.db

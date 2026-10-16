@@ -1,0 +1,25 @@
+# Once a day: checks the game server answers and has answers scheduled well ahead. If anything is wrong
+# this run fails and GitHub emails you. It also stops a free Supabase project pausing for inactivity.
+name: Daily health check
+
+on:
+  schedule:
+    - cron: "23 6 * * *"          # 06:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            docs/config.js
+            .github/health_check.py
+          sparse-checkout-cone-mode: false
+      - name: Ask the game server how it's doing
+        run: python3 .github/health_check.py docs/config.js
