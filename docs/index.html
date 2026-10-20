@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self'; object-src 'none'">
 <title>Cricle: guess the international cricketer</title>
 <meta name="description" content="A new international cricketer to find every day. Ten guesses, one for each wicket. Green is a match, orange is close.">
 <meta name="theme-color" content="#17311f">
@@ -320,6 +320,18 @@ body { margin: 0; min-height: 100vh; }
   max-width: min(32rem, calc(100% - 32px)); background: var(--ink); color: var(--bg); padding: 12px 16px; border-radius: 10px;
   box-shadow: 0 10px 30px rgb(0 0 0 / .3); font-weight: 600; text-align: center; }
 .snack[hidden] { display: none; }
+.consent { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; background: var(--board); color: var(--board-ink);
+  border-top: 3px solid var(--near); padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.consent[hidden] { display: none; }
+.consent-in { max-width: 40rem; margin: 0 auto; display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
+.consent p { margin: 0; flex: 1 1 18rem; font-size: .9rem; color: var(--board-ink); }
+.consent a { color: var(--near); }
+.consent .row { flex: 0 0 auto; gap: 8px; }
+.consent .btn { padding: 9px 16px; }
+.consent .btn.alt { color: var(--board-ink); box-shadow: inset 0 0 0 1.5px var(--board-soft); }
+body.has-consent { padding-bottom: 110px; }
+body.has-consent .snack { bottom: 120px; }
+@media (max-width: 560px) { body.has-consent { padding-bottom: 190px; } body.has-consent .snack { bottom: 200px; } }
 
 /* leaderboard */
 .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; background: var(--panel-2); padding: 4px; border-radius: 10px; }
@@ -403,11 +415,17 @@ footer nav a { color: var(--ink); text-decoration-color: var(--near); text-decor
   <p>Every men's Test, ODI and T20I player for the twelve Test nations, plus ODI players from 13 associate nations.</p>
   <p id="dataLine">Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet.</p>
   <p>Not affiliated with or endorsed by the ICC, any cricket board, team or player.</p>
-  <nav><a href="privacy.html">Privacy</a><button type="button" class="link" data-go="how">How to play</button></nav>
+  <nav><a href="privacy.html">Privacy</a><button type="button" class="link" data-go="how">How to play</button><button type="button" class="link" data-act="cookies" id="cookieLink" hidden>Cookie settings</button></nav>
 </footer>
 
 <dialog class="sheet" id="result" aria-labelledby="resultTitle"></dialog>
 <div class="snack" id="snack" role="status" aria-live="polite" hidden></div>
+<section class="consent" id="consent" aria-label="Cookies" hidden>
+  <div class="consent-in">
+    <p>Can Cricle use cookies to count visits with Google Analytics? It helps decide what to improve. No ads, and the game works either way. <a href="privacy.html">Privacy</a></p>
+    <div class="row"><button class="btn gold" type="button" data-act="consent-yes">Allow</button><button class="btn alt" type="button" data-act="consent-no">No thanks</button></div>
+  </div>
+</section>
 
 <script src="vendor/supabase-2.117.2.js"></script>
 <script src="config.js"></script>
@@ -873,6 +891,7 @@ function afterGuess(game) {
   S.freshAt = game.rows.length;
   renderPlay();
   if (game.done) {
+    track("game_finish", { mode: game.kind, won: game.won ? 1 : 0, guesses: game.rows.length, hints: hintsUsed(game) });
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
     setTimeout(() => openResult(game), still ? 0 : 1000);   // let the last tiles turn over first
@@ -1258,6 +1277,51 @@ function renderHow() {
     </div>`;
 }
 
+/* ---------- analytics (Google Analytics 4, only after the visitor allows it) ---------- */
+const CONSENT_KEY = "cricle:consent";
+const GA = { id: (CONFIG.gaMeasurementId || "").trim(), on: false };
+function consentChoice() { const c = store.get(CONSENT_KEY); return c && typeof c.analytics === "boolean" ? c.analytics : null; }
+function startAnalytics(sendView) {
+  if (!GA.id || GA.on) return;
+  GA.on = true;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  gtag("consent", "default", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
+  gtag("js", new Date());
+  gtag("config", GA.id, { send_page_view: false });
+  const sc = document.createElement("script");
+  sc.async = true; sc.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GA.id);
+  document.head.appendChild(sc);
+  if (sendView) trackView(S.view);
+}
+function stopAnalytics() {
+  if (GA.on && window.gtag) gtag("consent", "update", { analytics_storage: "denied" });
+  GA.on = false;
+  const host = location.hostname.split(".");
+  for (const c of document.cookie.split(";").map(x => x.split("=")[0].trim()).filter(n => n === "_ga" || n.startsWith("_ga_") || n === "_gid")) {
+    for (let i = 0; i < host.length - 1; i++) document.cookie = `${c}=; Max-Age=0; path=/; domain=.${host.slice(i).join(".")}`;
+    document.cookie = `${c}=; Max-Age=0; path=/`;
+  }
+}
+function track(name, params) { if (GA.on && window.gtag) gtag("event", name, params || {}); }
+function trackView(view) {
+  if (!GA.on) return;
+  const path = location.pathname + (view && view !== "play" ? "#" + view : "");
+  track("page_view", { page_title: "Cricle: " + (view || "play"), page_location: location.origin + path });
+}
+function setConsent(yes) {
+  store.set(CONSENT_KEY, { analytics: yes, at: new Date().toISOString() });
+  $("#consent").hidden = true; document.body.classList.remove("has-consent");
+  if (yes) startAnalytics(true); else stopAnalytics();
+}
+function showConsentBar() { if (!GA.id) return; $("#consent").hidden = false; document.body.classList.add("has-consent"); }
+function initConsent() {
+  if (!GA.id) return;                      // analytics not set up: no bar, nothing loaded
+  $("#cookieLink").hidden = false;
+  const c = consentChoice();
+  if (c === true) startAnalytics(); else if (c === null) showConsentBar();
+}
+
 /* ---------- navigation ---------- */
 const VIEWS = ["play", "leaderboard", "archive", "stats", "how"];
 function show(view) {
@@ -1274,6 +1338,7 @@ function show(view) {
   const hash = view === "play" ? "" : "#" + view;
   if (location.hash !== hash) history.replaceState(null, "", location.pathname + location.search + hash);
   window.scrollTo({ top: 0 });
+  trackView(view);
 }
 function closeMenu() { $("#menu").hidden = true; $("#menuBtn").setAttribute("aria-expanded", "false"); }
 function toast(msg) { const t = $("#sheetToast"); if (t) t.textContent = msg; }
@@ -1352,9 +1417,12 @@ function wireGlobal() {
       case "hint": openHint(game, Number(act.dataset.k)); break;
       case "show-result": openResult(game); break;
       case "close-result": closeResult(); break;
-      case "share": shareResult(shareText(sg)); break;
+      case "share": track("share", { method: "share_button" }); shareResult(shareText(sg)); break;
       case "spoilers": copyText(`${shareText(sg)}\nIt was ${sg.answer.name}.`, "Copied, with the answer. Careful who you send it to."); break;
-      case "story": saveStory(sg); break;
+      case "story": track("share", { method: "story" }); saveStory(sg); break;
+      case "consent-yes": setConsent(true); break;
+      case "consent-no": setConsent(false); break;
+      case "cookies": showConsentBar(); break;
       case "practice-again": closeResult(); newPractice(); show("practice"); break;
       case "replay": newPractice(Number(act.dataset.id)); show("practice"); break;
       case "retry": location.reload(); break;
@@ -1394,6 +1462,7 @@ async function start() {
     return;
   }
   $("#loading").textContent = "Loading today's cricketer…";
+  initConsent();
   await connect();
   $("#loading").remove();
   $("#dataLine").textContent = `Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet, updated ${new Date(S.D.wiki_fetched_utc || S.D.built_utc).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`;

@@ -4,4 +4,6 @@
 window.CRICLE_CONFIG = {
   supabaseUrl: "https://bklxlytlyaxufumludvo.supabase.co",
   supabaseKey: "sb_publishable_WwQwPyvzGjlCadH8R7g6rg_kovWJ5yk",
+  // Google Analytics 4 Measurement ID (starts G-). Leave empty for no analytics and no cookie bar.
+  gaMeasurementId: "",
 };

@@ -227,6 +227,46 @@ check(await O.page.locator(".card").count() === 1, "practice still works without
 await O.page.goto(BASE + "#leaderboard"); await O.page.waitForSelector("#view-leaderboard .banner");
 check(/switching on soon/i.test(await O.page.locator("#view-leaderboard").innerText()), "leaderboard explains it's coming");
 
+// ---------------------------------------------------------------- 8b. cookie bar and Google Analytics
+console.log("\nCookie bar");
+const G = await newDevice();
+const gaHits = [];
+await G.page.route("**/config.js", async r => {
+  const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", gaMeasurementId: 'G-TEST123' };");
+  r.fulfill({ contentType: "text/javascript", body });
+});
+await G.page.route("https://www.googletagmanager.com/**", r => { gaHits.push(r.request().url()); r.fulfill({ contentType: "text/javascript", body: "window.__gaLoaded = true;" }); });
+await G.page.goto(BASE); await G.page.waitForSelector("#guessInput");
+check(await G.page.locator("#consent").isVisible(), "cookie bar shows on first visit");
+check(gaHits.length === 0, "nothing loaded from Google before a choice");
+await G.page.click("[data-act=consent-no]");
+check(!(await G.page.locator("#consent").isVisible()) && gaHits.length === 0, "No thanks: bar gone, Google Analytics never loaded");
+await G.page.reload(); await G.page.waitForSelector("#guessInput");
+check(!(await G.page.locator("#consent").isVisible()) && gaHits.length === 0, "choice remembered after reload");
+await G.page.click("#cookieLink");
+await G.page.click("[data-act=consent-yes]");
+await G.page.waitForFunction(() => window.__gaLoaded === true);
+check(gaHits.some(u => u.includes("id=G-TEST123")), "Allow: Google Analytics loads with the right ID");
+const dl = await G.page.evaluate(() => JSON.stringify(window.dataLayer.map(a => Array.from(a))));
+check(dl.includes('"ad_storage":"denied"') && dl.includes('"page_view"'), "ads storage denied, page view sent");
+await guess(G.page, wrong[0]);
+await G.page.reload(); await G.page.waitForSelector("#guessInput");
+check(!(await G.page.locator("#consent").isVisible()) && await G.page.evaluate(() => window.__gaLoaded === true), "Allow remembered: loads straight away next time");
+await shot(G.page, "phone-cookie-bar-check");
+const N = await newDevice();
+await N.page.goto(BASE); await N.page.waitForSelector("#guessInput");
+check(!(await N.page.locator("#consent").isVisible()) && !(await N.page.locator("#cookieLink").isVisible()), "no Measurement ID: no bar, no cookie link");
+await N.ctx.close();
+const F = await newDevice();
+await F.page.route("**/config.js", async r => {
+  const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", gaMeasurementId: 'G-TEST123' };");
+  r.fulfill({ contentType: "text/javascript", body });
+});
+await F.page.route("https://www.googletagmanager.com/**", r => r.fulfill({ contentType: "text/javascript", body: "" }));
+await F.page.goto(BASE); await F.page.waitForSelector("#consent");
+await shot(F.page, "phone-cookie-bar");
+await F.ctx.close();
+
 // ---------------------------------------------------------------- 9. how to play, dark mode, desktop
 const H = await newDevice({ colorScheme: "dark" });
 await H.page.goto(BASE + "#how"); await H.page.waitForSelector("table");
