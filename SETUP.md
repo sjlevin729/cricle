@@ -153,6 +153,9 @@ playcricle.com. That's normal; showing your own domain there is a paid Supabase 
 - **Every day** a health check asks the server how it's doing. It fails, and GitHub emails you, if fewer
   than 30 days of answers are scheduled, if the Monday refresh has stopped running, or if the server
   doesn't answer. It also stops a free Supabase project pausing for inactivity.
+- **Changing who can be the answer** (POOL_MIN_MATCHES, POOL_MIN_MATCHES_OLDER, RECENT_FROM in the CONFIG block):
+  the next refresh would stop at its safety check if the pool shrinks a lot. Run **Weekly data refresh** by hand
+  and tick **Publish even if many players left the answer pool**. Past answers and today's stay as they are.
 - **Tile rules, the answer pool and the bands** live in the CONFIG block at the top of
   `pipeline/build_players.py`. Change them there; the next refresh updates the website and the server together.
 - **Moderating names**: in the Supabase **SQL Editor**:
