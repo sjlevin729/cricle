@@ -218,12 +218,14 @@ try {
 console.log("\nNo server");
 const O = await newDevice();
 await O.page.route("**/config.js", r => r.fulfill({ contentType: "text/javascript", body: "window.CRICLE_CONFIG = { supabaseUrl: '', supabaseKey: '' };" }));
-await O.page.goto(BASE); await O.page.waitForSelector(".banner.err");
-check(/isn't connected/i.test(await O.page.locator(".banner.err").innerText()), "explains the game isn't connected");
-await O.page.click(".banner [data-go=practice]");
-await O.page.waitForSelector("#guessInput");
+await O.page.goto(BASE); await O.page.waitForSelector("#guessInput");
+check(/practice/i.test(await O.page.locator("h1").innerText()) && /switching on soon/i.test(await O.page.locator(".banner").innerText()),
+  "before the server is connected the site opens straight into practice");
+await shot(O.page, "phone-practice-only", true);
 await guess(O.page, wrong[0]);
 check(await O.page.locator(".card").count() === 1, "practice still works without the server");
+await O.page.goto(BASE + "#leaderboard"); await O.page.waitForSelector("#view-leaderboard .banner");
+check(/switching on soon/i.test(await O.page.locator("#view-leaderboard").innerText()), "leaderboard explains it's coming");
 
 // ---------------------------------------------------------------- 9. how to play, dark mode, desktop
 const H = await newDevice({ colorScheme: "dark" });

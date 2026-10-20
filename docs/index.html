@@ -582,7 +582,7 @@ function handleError(e) {
 
 async function connect() {
   if (!CONFIG.supabaseUrl || !CONFIG.supabaseKey || !window.supabase) {
-    S.server = "off"; S.serverError = "The daily game isn't connected to its server yet."; return;
+    S.server = "off"; S.unconfigured = true; S.serverError = "The daily game, leaderboards and stats are switching on soon."; return;
   }
   const url = new URL(location.href);
   const authError = url.searchParams.get("error_description") || url.searchParams.get("error");
@@ -777,6 +777,7 @@ function renderPlay() {
   const cards = game.rows.map((row, k) => ({ row, n: k + 1 })).reverse().map(({ row, n: num }) => cardHTML(game, row, num, num === S.freshAt)).join("");
   view.innerHTML = `
     ${S.view === "practice" && S.today != null && S.today < 0 ? `<p class="banner">Daily #1 starts ${dateText(0)}. Have a practice round until then.</p>` : ""}
+    ${S.view === "practice" && S.unconfigured ? `<p class="banner">The daily game, leaderboards and stats are switching on soon. Until then, enjoy practice rounds.</p>` : ""}
     <div class="head">
       <h1>${isDaily ? "Who's today's cricketer?" : "Practice round"}</h1>
       <p class="lede">${isDaily ? "Every day there's a new international cricketer to find. " : "Doesn't count towards your stats or the leaderboard. "}Ten guesses, one for each wicket. Green is a match, orange is close, and arrows point to the answer. <button type="button" class="link" data-go="how">How to play</button></p>
@@ -800,6 +801,9 @@ function renderPlay() {
   if (!game.done) wireInput(game); else startCountdown();
 }
 function offlineHTML() {
+  if (S.unconfigured) return `<div class="head"><h1>Who's today's cricketer?</h1></div>
+    <div class="banner"><p>${esc(S.serverError)} Until then, practice rounds are open: a random international cricketer each time.</p>
+    <div class="row"><button class="btn gold" type="button" data-go="practice">Play a practice round</button></div></div>`;
   return `<div class="head"><h1>Who's today's cricketer?</h1></div>
     <div class="banner err"><p>${esc(S.serverError || "Today's game couldn't load.")}</p>
     <div class="row"><button class="btn" type="button" data-act="retry">Try again</button><button class="btn alt" type="button" data-go="practice">Play a practice round</button></div></div>`;
@@ -1394,7 +1398,7 @@ async function start() {
   $("#loading").remove();
   $("#dataLine").textContent = `Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet, updated ${new Date(S.D.wiki_fetched_utc || S.D.built_utc).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`;
   const want = location.hash.slice(1);
-  if (S.server === "on" && S.today != null && S.today < 0) { newPractice(); show("practice"); return; }
+  if ((S.server === "on" && S.today != null && S.today < 0) || (S.unconfigured && !VIEWS.slice(1).includes(want))) { newPractice(); show("practice"); return; }
   show(VIEWS.includes(want) || want === "practice" ? want : "play");
 }
 

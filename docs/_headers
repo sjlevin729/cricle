@@ -1,0 +1,25 @@
+# Netlify reads this file. Security headers for every page, and caching that keeps repeat visits
+# almost free (Netlify's free plan counts bandwidth).
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Never change once published: keep for a year
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+/vendor/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Photos and icons rarely change: keep for a week
+/photos/*.jpg
+  Cache-Control: public, max-age=604800
+/*.png
+  Cache-Control: public, max-age=604800
+
+# Player data changes on Mondays: keep for an hour, then check for a newer copy
+/data/*
+  Cache-Control: public, max-age=3600, must-revalidate
+/photos/credits.json
+  Cache-Control: public, max-age=3600, must-revalidate

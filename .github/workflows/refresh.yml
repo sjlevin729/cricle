@@ -1,5 +1,6 @@
 # Every Monday: rebuild the players from Wikipedia, Wikidata and Cricsheet, add photos for new answer-pool
-# players, save everything to Supabase, commit the site's data files and redeploy the site.
+# players, save everything to Supabase and commit the site's data files. Netlify sees the commit and
+# redeploys the site.
 # Run it by hand from the Actions tab: Weekly data refresh > Run workflow.
 name: Weekly data refresh
 
@@ -59,11 +60,3 @@ jobs:
           if git diff --cached --quiet; then echo "No changes"; exit 0; fi
           git commit -m "Weekly data refresh $(date -u +%Y-%m-%d)"
           git push
-
-  deploy:
-    needs: refresh
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/deploy.yml

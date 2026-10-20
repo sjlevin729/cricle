@@ -1,0 +1,6 @@
+# Netlify settings, read when the site is linked to the GitHub repository (SETUP.md step 6).
+# There's nothing to build: the website is the docs/ folder as it is.
+[build]
+  publish = "docs"
+  # Only redeploy when the website itself changed (each deploy uses free-plan credits)
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- docs/"

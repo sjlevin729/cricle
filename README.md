@@ -9,10 +9,10 @@ To put it online, follow [SETUP.md](SETUP.md).
 
 | Folder | What it is |
 | --- | --- |
-| `docs/` | The website, served as-is by GitHub Pages. `index.html` is the whole game. `data/players.json` and `photos/` are written by the weekly refresh. `config.js` says where the server is. |
+| `docs/` | The website, served as-is by Netlify (settings in `netlify.toml` and `docs/_headers`). `index.html` is the whole game. `data/players.json` and `photos/` are written by the weekly refresh. `config.js` says where the server is. |
 | `supabase/schema.sql` | The game server: tables, the tile rules, guess checking, leaderboards, accounts. Paste into Supabase's SQL editor to install or update. |
 | `pipeline/` | The data build. `refresh.py` is the weekly job; `build_players.py` builds players from Wikipedia, Wikidata and Cricsheet (all the tunable rules are in its CONFIG block); `fetch_photos.py` adds photos; `supabase_sync.py` talks to the server. |
-| `.github/workflows/` | `refresh.yml` (Mondays), `deploy.yml` (publishes `docs/`), `health.yml` (daily check). |
+| `.github/workflows/` | `refresh.yml` (Mondays; its commit makes Netlify redeploy), `health.yml` (daily check). |
 | `dev/` | A local copy of the whole stack for testing (see `dev/README.txt`). Not part of the website. |
 
 ## How a daily game works

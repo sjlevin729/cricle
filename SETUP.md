@@ -1,14 +1,16 @@
 # Setting up Cricle
 
 This puts Cricle on its own website, with Google sign-in, leaderboards and a weekly data refresh.
-It takes about an hour, spread over a few sittings. Everything except the domain is free.
+Step 0 gets it online today in practice mode. The rest takes about an hour, spread over a few sittings.
+Everything except the domain is free.
 
-You'll create three accounts (GitHub, Supabase, a Google Cloud project) and buy one domain. Claude can't
-create accounts or type passwords and keys for you, so those parts are yours. Everything else, Claude can do.
+You'll create four accounts (Netlify, GitHub, Supabase, a Google Cloud project) and buy one domain. Claude
+can't create accounts or type passwords and keys for you, so those parts are yours. Everything else, Claude can do.
 
 | Piece | What it does | Cost |
 | --- | --- | --- |
-| GitHub | Holds the code, hosts the website (GitHub Pages), runs the Monday refresh and a daily check | Free |
+| Netlify | Hosts the website | Free (see the limits at the end) |
+| GitHub | Holds the code, runs the Monday refresh and a daily check | Free |
 | Supabase | The game server: players, daily answers, results, sign-in | Free up to 50,000 players a month |
 | Google Cloud | Lets people "Sign in with Google" | Free |
 | playcricle.com | The address | About £8 to £10 a year |
@@ -17,14 +19,28 @@ Keep a note of these as you go (a password manager is ideal):
 - Supabase project URL, publishable key, secret key, database password
 - Google client ID and client secret
 
+In the steps below, `cricle.netlify.app` stands for whatever Netlify address you end up with in step 0.
+
 ---
+
+## 0. Netlify (online today, practice mode)
+
+1. Sign up at https://app.netlify.com/signup (free). Sign up with GitHub if you already have it.
+2. Go to https://app.netlify.com/drop and drag the **docs** folder from `Documents\cricle` onto the page.
+   Drag the folder itself, not the files inside it.
+3. When it's uploaded, open **Site configuration** > **Change site name** and type `cricle`
+   (or `cricle-game` if that's taken). The site is now live at `https://cricle.netlify.app`.
+
+Until Supabase is connected (steps 2 and 4), the site opens straight into practice rounds with a note that
+the daily game is switching on soon. To update it by hand later, open the site in Netlify > **Deploys** and drag
+the docs folder onto the box there. Once step 5 is done you never need to do this again.
 
 ## 1. GitHub
 
 1. Sign up at https://github.com/signup (or sign in).
 2. Top right, **+** > **New repository**.
    - Repository name: `cricle`
-   - **Public** (GitHub Pages is free for public repositories; no secrets are ever stored in the code)
+   - **Private**
    - Leave "Add a README" unticked.
    - **Create repository**.
 3. Tell Claude the address (for example `https://github.com/yourname/cricle`). Claude uploads the code.
@@ -45,10 +61,10 @@ Keep a note of these as you go (a password manager is ideal):
    then **Save**. The limit is per internet connection, and phone networks put thousands of people behind
    one connection.
 6. **Authentication** > **URL Configuration**:
-   - Site URL: `https://playcricle.com`
+   - Site URL: `https://cricle.netlify.app` (change it to `https://playcricle.com` once the domain works)
    - Redirect URLs, add each of these:
+     - `https://cricle.netlify.app/**`
      - `https://playcricle.com/**`
-     - `https://YOURNAME.github.io/cricle/**` (until the domain is working)
 7. **Project Settings** > **API Keys**. Note the **Project URL** (`https://xxxx.supabase.co`), the
    **publishable key** (`sb_publishable_...`) and the **secret key** (`sb_secret_...`; press reveal, or
    create one if there isn't one).
@@ -62,12 +78,12 @@ Keep a note of these as you go (a password manager is ideal):
    - App name: `Cricle`; user support email: your email
    - Audience: **External**
    - Contact information: your email. Agree and **Create**.
-3. **Branding**: app home page `https://playcricle.com`, privacy policy `https://playcricle.com/privacy.html`.
-   Under authorised domains add `playcricle.com` and `xxxx.supabase.co` (your Supabase project's address,
-   without `https://`). **Save**.
+3. **Branding**: app home page `https://cricle.netlify.app`, privacy policy `https://cricle.netlify.app/privacy.html`
+   (switch both to playcricle.com once the domain works). Under authorised domains add `cricle.netlify.app`,
+   `playcricle.com` and `xxxx.supabase.co` (your Supabase project's address, without `https://`). **Save**.
 4. **Clients** > **Create client**:
    - Application type: **Web application**; name: `Cricle website`
-   - Authorised JavaScript origins: `https://playcricle.com`
+   - Authorised JavaScript origins: `https://cricle.netlify.app` and `https://playcricle.com`
    - Authorised redirect URIs: `https://xxxx.supabase.co/auth/v1/callback`
      (Supabase shows this exact address on its Google provider page, with a copy button.)
    - **Create**. Copy the **client ID** and **client secret**.
@@ -84,7 +100,7 @@ playcricle.com. That's normal; showing your own domain there is a paid Supabase 
    Add two secrets:
    - `SUPABASE_URL` = the Project URL
    - `SUPABASE_SECRET_KEY` = the secret key
-   These stay locked inside GitHub; only the Monday refresh can use them.
+   These stay locked inside GitHub; only the Monday refresh can use them. (Netlify never needs them.)
 2. In the repository, open `docs/config.js`, press the pencil (edit), and fill in:
    ```js
    supabaseUrl: "https://xxxx.supabase.co",
@@ -92,39 +108,31 @@ playcricle.com. That's normal; showing your own domain there is a paid Supabase 
    ```
    **Commit changes**. (Or paste these two values to Claude; they're public.)
 
-## 5. Day 1 and the first refresh
+## 5. Link Netlify to GitHub, then Day 1
 
-1. Choose the date of Daily #1 and tell Claude, who sets `LAUNCH_DATE` in `pipeline/build_players.py`.
-2. **Settings** > **Pages** > Build and deployment > Source: **GitHub Actions**.
-3. **Actions** tab. If asked, enable workflows. Open **Weekly data refresh** > **Run workflow**.
+1. In Netlify, open the site > **Site configuration** > **Build & deploy** > **Link repository** (it may say
+   "Link site to Git") > **GitHub** > allow access > pick `cricle`. Netlify reads `netlify.toml` from the code,
+   so leave the build settings as they come (publish directory `docs`, no build command) and save.
+   From now on, any change to the website in GitHub, including the Monday data refresh, redeploys it by itself.
+2. Choose the date of Daily #1 and tell Claude, who sets `LAUNCH_DATE` in `pipeline/build_players.py`.
+3. GitHub **Actions** tab. If asked, enable workflows. Open **Weekly data refresh** > **Run workflow**.
    It takes about 10 minutes: it fetches every player from Wikipedia, Wikidata and Cricsheet, adds photos,
    fills Supabase, draws the daily answers (with a secret random seed, so nobody can work them out from
-   the code) and publishes the site.
-4. When it's green, the game is live at `https://YOURNAME.github.io/cricle/`. Try it on your phone.
+   the code) and commits the new data. Netlify then publishes it.
+4. Open `https://cricle.netlify.app` on your phone: the daily game, leaderboards and sign-in are now on.
 
 ## 6. The domain
 
 1. Buy `playcricle.com`. Porkbun (https://porkbun.com) is simple and includes free privacy protection;
    any registrar works. Check with Claude first that it's still available.
-2. In GitHub: **Settings** > **Pages** > Custom domain: `playcricle.com` > **Save**.
-3. At the registrar, open the domain's **DNS records**, delete any default "parking" records, and add:
-
-   | Type | Host | Answer |
-   | --- | --- | --- |
-   | A | (blank or @) | 185.199.108.153 |
-   | A | (blank or @) | 185.199.109.153 |
-   | A | (blank or @) | 185.199.110.153 |
-   | A | (blank or @) | 185.199.111.153 |
-   | AAAA | (blank or @) | 2606:50c0:8000::153 |
-   | AAAA | (blank or @) | 2606:50c0:8001::153 |
-   | AAAA | (blank or @) | 2606:50c0:8002::153 |
-   | AAAA | (blank or @) | 2606:50c0:8003::153 |
-   | CNAME | www | YOURNAME.github.io |
-
-4. Wait (usually under an hour) until GitHub's Pages settings say the DNS check succeeded, then tick
-   **Enforce HTTPS**.
-5. Recommended: verify the domain so nobody else can point a GitHub site at it. Your GitHub profile
-   picture > **Settings** > **Pages** > **Add a domain**, and add the TXT record it shows at the registrar.
+2. In Netlify: the site > **Domain management** > **Add a domain** > `playcricle.com` > follow the prompts.
+   Choose "external DNS" (keep DNS at your registrar) unless you'd rather move it to Netlify.
+3. Netlify then shows the exact records to add at your registrar: an **A** record for `playcricle.com`
+   pointing at Netlify, and a **CNAME** for `www` pointing at `cricle.netlify.app`. At the registrar, open the
+   domain's **DNS records**, delete any default "parking" records, and add those.
+4. Within an hour or so Netlify confirms the domain and switches on HTTPS by itself.
+5. Then update the playcricle.com references: Supabase Site URL (step 2.6) and the Google branding links
+   (step 3.3). Tell Claude, who also points the link-preview image at the new address.
 
 ## 7. Before you tell anyone
 
@@ -156,8 +164,13 @@ playcricle.com. That's normal; showing your own domain there is a paid Supabase 
 - Supabase free: 50,000 monthly active players, 500 MB of data (a few years of results at a few thousand
   players a day), and no automatic backups. If Cricle takes off, Supabase Pro ($25 a month) adds daily
   backups and more room.
-- GitHub Pages: about 100 GB of downloads a month. A first visit loads roughly 300 KB and repeat visits
-  far less, so that's comfortably over 300,000 visits a month.
+- Netlify free (accounts opened since September 2025): 300 credits a month. Each deploy uses 15 and each GB
+  of downloads uses 20. The Monday refresh uses about 75 a month, which leaves room for roughly 10 GB, about
+  35,000 first visits a month (a first visit is roughly 300 KB; repeat visits mostly come from the visitor's
+  own cache). If the credits run out, Netlify takes the site offline until the next month, so check
+  **Usage** in Netlify now and then. If Cricle outgrows it, Netlify Pro or GitHub Pages (free, 100 GB a month)
+  both work with the same code.
+- GitHub free: 2,000 minutes a month of Actions for private repositories; Cricle uses about 70.
 - Someone determined could make throwaway guest accounts to peek at the answer before playing properly.
   Every word game has this; the server makes sure nobody can see the answer, or the next day's, without
   playing.
