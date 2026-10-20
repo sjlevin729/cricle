@@ -136,8 +136,8 @@ playcricle.com. That's normal; showing your own domain there is a paid Supabase 
 
 ## 7. Before you tell anyone
 
-1. Fill in your name and a contact email in `docs/privacy.html` (the two places marked `[OWNER NAME]` and
-   `[CONTACT EMAIL]`). A contact address is needed for the privacy page and for Google.
+1. The privacy page names the site as "Cricle" with the contact address playcricle@gmail.com (done).
+   Use the same address as the support email for Google sign-in.
 2. Play a game, sign in with Google, check the leaderboard, open it on a second device.
 3. If you played test games before Daily #1, clear them: Supabase **SQL Editor** > new query >
    `select admin_reset_game();` > Run, then run **Weekly data refresh** again. This deletes every result and
