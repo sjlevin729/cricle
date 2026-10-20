@@ -124,7 +124,7 @@ TARGET_GREEN = 0.05          # about 1 in 20 green
 TARGET_GREEN_OR_GOLD = 0.25  # about 1 in 5 gold, on top of the greens
 
 # Daily schedule.
-LAUNCH_DATE = "2026-10-14"   # day 1, unlocks at midnight UTC. Website: the first refresh into an empty
+LAUNCH_DATE = "2026-10-20"   # day 1, unlocks at midnight UTC. Website: the first refresh into an empty
                              # Supabase uses this date; after that the live date in Supabase wins (SETUP.md).
 SCHEDULE_SEED = "cricket-guess-v1"   # standalone builds only; refresh.py replaces it with a secret random seed
 SCHEDULE_HORIZON_DAYS = 400  # always keep at least this many future days scheduled
