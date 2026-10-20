@@ -1223,7 +1223,7 @@ function renderHow() {
     <div class="prose">
       <p>Every day there's a new mystery international cricketer, and everyone gets the same one. Type a name, pick it from the list, and each guess shows how close that player is to the answer.</p>
       <p>You have ten guesses, one for each wicket. Every wrong guess is a wicket down. Get it on your fourth guess and you've won by 7 wickets. Ten wrong guesses and you're all out.</p>
-      <p>The answer is always a men's international who played for a Test nation, made their international debut in ${D.pool_rule.min_debut} or later and has played at least ${D.pool_rule.min_matches} international matches (Tests, ODIs and T20Is added together). You can still guess any player.</p>
+      <p>The answer is always a men's international who played for a Test nation, made their international debut in ${D.pool_rule.min_debut} or later and has played plenty of international matches (Tests, ODIs and T20Is added together): at least ${D.pool_rule.min_matches_older ?? D.pool_rule.min_matches} for players who debuted before ${D.pool_rule.recent_from ?? "2015"}, and at least ${D.pool_rule.min_matches} for anyone since. You can still guess any player.</p>
       <ul>
         <li><span class="chip green">Green</span> means a match.</li>
         <li><span class="chip gold">Orange</span> means close.</li>

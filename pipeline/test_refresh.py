@@ -116,6 +116,7 @@ def run():
     tmp = Path(tempfile.mkdtemp())
     try:
         bp.POOL_MIN_MATCHES = 100
+        bp.POOL_MIN_MATCHES_OLDER = 100
         site, out = tmp / "docs", tmp / "out"
         sb, api = FakeSupabase(), FakePhotoApi()
         args = ["--site", str(site), "--out", str(out), "--cache", str(tmp / "cache")]

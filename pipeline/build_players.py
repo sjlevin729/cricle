@@ -92,7 +92,10 @@ CATEGORY_PATTERNS = {
 
 # Mystery-answer pool rules.
 POOL_MIN_DEBUT = 1985      # first international match in this year or later
-POOL_MIN_MATCHES = 75      # Tests + ODIs + T20Is (75 gives a pool of roughly 550)
+POOL_MIN_MATCHES = 75      # Tests + ODIs + T20Is, for players who debuted in RECENT_FROM or later
+# Older players need more matches to be an answer, so the answer is someone people remember.
+RECENT_FROM = 2015         # debut year from which POOL_MIN_MATCHES applies
+POOL_MIN_MATCHES_OLDER = 150   # matches needed by players who debuted before RECENT_FROM
 
 # Role spectrum. Gold = one step away along this list.
 ROLE_ORDER = ["Keeper", "Batter", "Batting AR", "Bowling AR", "Bowler"]
@@ -781,7 +784,8 @@ def mark_pool(players, qa):
     for p in players:
         ok = (any(c in FULL_MEMBERS for c in p["countries"])
               and p["debut"] is not None and p["debut"] >= POOL_MIN_DEBUT
-              and p["tot"]["matches"] is not None and p["tot"]["matches"] >= POOL_MIN_MATCHES)
+              and p["tot"]["matches"] is not None
+              and p["tot"]["matches"] >= (POOL_MIN_MATCHES if p["debut"] >= RECENT_FROM else POOL_MIN_MATCHES_OLDER))
         if ok:
             missing = [k for k in ("role", "bats", "bowls") if p[k] is None]
             missing += [k for k in ("runs", "wickets") if p["tot"][k] is None]
@@ -1190,7 +1194,8 @@ def main(argv=None, http=None, today=None):
         "regions": REGIONS,
         "role_order": ROLE_ORDER,
         "bowl_families": BOWL_FAMILIES,
-        "pool_rule": {"min_debut": POOL_MIN_DEBUT, "min_matches": POOL_MIN_MATCHES, "countries": FULL_MEMBERS},
+        "pool_rule": {"min_debut": POOL_MIN_DEBUT, "min_matches": POOL_MIN_MATCHES, "recent_from": RECENT_FROM,
+                      "min_matches_older": POOL_MIN_MATCHES_OLDER, "countries": FULL_MEMBERS},
         "counts": {"guessable": len(players), "pool": len(pool), "pool_by_country": dict(sorted(by_country.items()))},
     }
     (out / "players.json").write_text(json.dumps({"meta": meta, "schedule": schedule, "players": players},

@@ -289,6 +289,7 @@ def run():
     tmp = tempfile.mkdtemp()
     try:
         bp.POOL_MIN_MATCHES = 100
+        bp.POOL_MIN_MATCHES_OLDER = 100
         res = bp.main(["--out", str(Path(tmp) / "out"), "--cricsheet"], http=FakeHttp(tmp), today="2026-10-14")
         by = {p["name"]: p for p in res["players"]}
         qa = res["qa"]
@@ -454,5 +455,21 @@ def run():
         shutil.rmtree(tmp)
 
 
+def era_rule():
+    print("\nAnswer pool: older players need more matches")
+    saved = (bp.POOL_MIN_MATCHES, bp.POOL_MIN_MATCHES_OLDER, bp.RECENT_FROM)
+    bp.POOL_MIN_MATCHES, bp.POOL_MIN_MATCHES_OLDER, bp.RECENT_FROM = 75, 150, 2015
+    try:
+        mk = lambda debut, m: {"id": 1, "name": "x", "countries": ["India"], "debut": debut, "role": "Batter", "bats": "R",
+                               "bowls": "Off-spin", "tot": {"matches": m, "runs": 1, "wickets": 1}}
+        ps = [mk(2010, 149), mk(2010, 150), mk(2015, 75), mk(2014, 120), mk(2016, 74)]
+        bp.mark_pool(ps, bp.QA())
+        check([p["pool"] for p in ps] == [False, True, True, False, False],
+              "pre-2015 debut needs 150 matches, 2015 on needs 75")
+    finally:
+        bp.POOL_MIN_MATCHES, bp.POOL_MIN_MATCHES_OLDER, bp.RECENT_FROM = saved
+
+
 if __name__ == "__main__":
+    era_rule()
     run()
