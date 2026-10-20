@@ -2,6 +2,8 @@
 // Both values are meant to be public: the publishable key only lets the page call the game's functions.
 // Never put the secret key here.
 window.CRICLE_CONFIG = {
+  // The address shown in shared results
+  siteUrl: "playcricle.com",
   supabaseUrl: "https://bklxlytlyaxufumludvo.supabase.co",
   supabaseKey: "sb_publishable_WwQwPyvzGjlCadH8R7g6rg_kovWJ5yk",
   // Google Analytics 4 Measurement ID (starts G-). Leave empty for no analytics and no cookie bar.
