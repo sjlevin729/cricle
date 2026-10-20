@@ -1311,6 +1311,20 @@ function sponsor() {
     : { paid: false, name: "Your brand here", line: "Your logo, name and link on the result screen of every finished game, and on the game itself.",
         url: "sponsor.html", logo: "", colour: "", cta: "Advertise on Cricle →" };
 }
+// The sponsor's link with tracking tags, so their own analytics shows visits from Cricle (and from which slot)
+function adHref(sp, place) {
+  if (!sp.paid) return "sponsor.html";
+  try {
+    const u = new URL(/^https?:\/\//i.test(sp.url) ? sp.url : "https://" + sp.url);
+    if (!u.searchParams.has("utm_source")) {
+      u.searchParams.set("utm_source", "playcricle");
+      u.searchParams.set("utm_medium", "sponsorship");
+      u.searchParams.set("utm_campaign", "cricle");
+      u.searchParams.set("utm_content", place);
+    }
+    return u.href;
+  } catch (e) { return sp.url; }
+}
 const adStyle = sp => sp.colour && /^#[0-9a-f]{3,8}$/i.test(sp.colour) ? ` style="--ad-accent:${sp.colour};--ad-ink:${inkFor(sp.colour)}"` : "";
 function inkFor(hex) {   // black or white text, whichever reads better on the sponsor's colour
   let h = hex.slice(1); if (h.length < 6) h = h.split("").map(c => c + c).join("");
@@ -1319,7 +1333,7 @@ function inkFor(hex) {   // black or white text, whichever reads better on the s
 }
 function sponsorHTML() {
   const sp = sponsor();
-  const attrs = sp.paid ? `href="${esc(sp.url)}" target="_blank" rel="sponsored noopener"` : `href="sponsor.html"`;
+  const attrs = sp.paid ? `href="${esc(adHref(sp, "result"))}" target="_blank" rel="sponsored noopener"` : `href="sponsor.html"`;
   const logo = sp.logo ? `<span class="logo"><img src="${esc(sp.logo)}" alt="${esc(sp.name)} logo"></span>` : `<span class="logo empty">Your logo</span>`;
   return `<a class="ad" ${attrs} data-sponsor${adStyle(sp)}>${logo}
     <span class="tag">${sp.paid ? "Today's Cricle is sponsored by" : "Advertise here"}</span>
@@ -1330,12 +1344,12 @@ function sponsorHTML() {
 function sponsorStripHTML() {
   const sp = sponsor();
   if (!sp.paid) return `<a class="adstrip empty" href="sponsor.html" data-sponsor><small>Today's Cricle presented by</small><b>Your brand here</b><span class="go">Advertise →</span></a>`;
-  return `<a class="adstrip" href="${esc(sp.url)}" target="_blank" rel="sponsored noopener" data-sponsor${adStyle(sp)}>
+  return `<a class="adstrip" href="${esc(adHref(sp, "game"))}" target="_blank" rel="sponsored noopener" data-sponsor${adStyle(sp)}>
     <small>Today's Cricle presented by</small>${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ""}<b>${esc(sp.name)}</b></a>`;
 }
 function renderFootSponsor() {
   const sp = sponsor(), el = $("#footSponsor");
-  el.innerHTML = sp.paid ? `Cricle is sponsored by <a href="${esc(sp.url)}" target="_blank" rel="sponsored noopener" data-sponsor>${esc(sp.name)}</a>.`
+  el.innerHTML = sp.paid ? `Cricle is sponsored by <a href="${esc(adHref(sp, "footer"))}" target="_blank" rel="sponsored noopener" data-sponsor>${esc(sp.name)}</a>.`
     : `Want your brand on Cricle? <a href="sponsor.html" data-sponsor>Sponsor the game</a>.`;
 }
 

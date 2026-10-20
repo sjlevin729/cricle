@@ -281,6 +281,9 @@ await SP.page.waitForSelector("dialog.sheet[open] a.ad");
 const spa = SP.page.locator("dialog.sheet a.ad");
 check(/acme bats/i.test(await spa.innerText()) && (await spa.getAttribute("rel")).includes("sponsored"), "paid sponsor shown in the result pop-up, marked sponsored");
 check(/Acme Bats/.test(await SP.page.locator("#footSponsor").innerText()), "paid sponsor in the footer");
+check((await spa.getAttribute("href")) === "https://example.com/?utm_source=playcricle&utm_medium=sponsorship&utm_campaign=cricle&utm_content=result"
+  && /utm_content=footer/.test(await SP.page.locator("#footSponsor a").getAttribute("href"))
+  && /utm_content=game/.test(await SP.page.locator("a.adstrip").getAttribute("href")), "sponsor links carry tracking tags per slot");
 await SP.page.waitForTimeout(400);
 await shot(SP.page, "phone-result-sponsor", true);
 await SP.ctx.close();
