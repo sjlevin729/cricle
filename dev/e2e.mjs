@@ -272,13 +272,13 @@ console.log("\nSponsor slot");
 check(/Sponsor the game/.test(await G.page.locator("#footSponsor").innerText()), "footer invites sponsors");
 const SP = await newDevice();
 await SP.page.route("**/config.js", async r => {
-  const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", sponsor: { name: 'Acme Bats', line: 'Hand-made in Yorkshire', url: 'https://example.com/', logo: '' } };");
+  const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", sponsor: { name: 'Acme Bats', line: 'Hand-made in Yorkshire', url: 'https://example.com/', logo: 'apple-touch-icon.png', colour: '#c8102e', cta: 'Shop the range' } };");
   r.fulfill({ contentType: "text/javascript", body });
 });
 await SP.page.goto(BASE); await SP.page.waitForSelector("#guessInput");
 await guess(SP.page, ansName);
-await SP.page.waitForSelector("dialog.sheet[open] a.sponsor");
-const spa = SP.page.locator("dialog.sheet a.sponsor");
+await SP.page.waitForSelector("dialog.sheet[open] a.ad");
+const spa = SP.page.locator("dialog.sheet a.ad");
 check(/acme bats/i.test(await spa.innerText()) && (await spa.getAttribute("rel")).includes("sponsored"), "paid sponsor shown in the result pop-up, marked sponsored");
 check(/Acme Bats/.test(await SP.page.locator("#footSponsor").innerText()), "paid sponsor in the footer");
 await SP.page.waitForTimeout(400);

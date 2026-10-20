@@ -325,13 +325,26 @@ body { margin: 0; min-height: 100vh; }
 .consent { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; background: var(--board); color: var(--board-ink);
   border-top: 3px solid var(--near); padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .consent[hidden] { display: none; }
-.sponsor { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; text-decoration: none;
-  background: rgb(255 255 255 / .05); border: 1px dashed rgb(255 255 255 / .22); color: var(--board-ink); }
-.sponsor.paid { border-style: solid; }
-.sponsor img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; flex: none; }
-.sponsor small { display: block; color: var(--board-soft); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
-.sponsor b { display: block; font-size: 1rem; }
-.sponsor span.go { margin-left: auto; color: var(--near); font-weight: 700; white-space: nowrap; }
+.ad { --ad-accent: var(--near); display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 6px 14px; align-items: center; padding: 16px;
+  border-radius: 20px; background: #f6f2e4; color: #12261a; text-decoration: none; box-shadow: 0 0 0 3px var(--ad-accent), 0 10px 30px rgb(0 0 0 / .35); }
+.ad .logo { grid-row: span 3; width: 76px; height: 76px; border-radius: 14px; background: #fff; display: grid; place-items: center; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .08); }
+.ad .logo img { width: 100%; height: 100%; object-fit: contain; }
+.ad .logo.empty { background: transparent; box-shadow: none; border: 2.5px dashed #c9922e; color: #8a6420; font: 800 .8rem/1.1 var(--display);
+  text-transform: uppercase; letter-spacing: .06em; text-align: center; padding: 6px; }
+.ad .tag { font: 700 .72rem/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: #6b5a2a; align-self: end; }
+.ad .nm { font: 900 1.75rem/1 var(--display); text-transform: uppercase; letter-spacing: .01em; overflow-wrap: anywhere; }
+.ad .line { color: #3b4a40; font-size: .95rem; line-height: 1.35; align-self: start; }
+.ad .cta { grid-column: 1 / -1; margin-top: 8px; display: block; text-align: center; padding: 13px 12px; border-radius: 12px;
+  background: var(--ad-accent); color: var(--ad-ink, #241603); font-weight: 800; font-size: 1.05rem; }
+.ad:hover .cta { filter: brightness(1.06); }
+.adstrip { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px;
+  background: #f6f2e4; color: #12261a; text-decoration: none; border: 2px solid var(--ad-accent, var(--near)); text-align: center; }
+.adstrip small { font: 700 .72rem/1 var(--body); letter-spacing: .14em; text-transform: uppercase; color: #6b5a2a; }
+.adstrip img { height: 28px; width: auto; max-width: 110px; object-fit: contain; }
+.adstrip b { font: 900 1.2rem/1 var(--display); text-transform: uppercase; letter-spacing: .02em; }
+.adstrip .go { color: #8a6420; font-weight: 700; font-size: .9rem; }
+.adstrip.empty { border-style: dashed; border-color: #c9922e; }
 .footsponsor a { color: var(--ink); font-weight: 600; }
 .consent-in { max-width: 40rem; margin: 0 auto; display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
 .consent p { margin: 0; flex: 1 1 18rem; font-size: .9rem; color: var(--board-ink); }
@@ -816,6 +829,7 @@ function renderPlay() {
       <div class="score">${scoreLine}</div></div>
       <div class="wkts" aria-label="${down} of ${S.cfg.max_guesses} wickets down">${pips}</div>
     </div>
+    ${sponsorStripHTML()}
     ${game.done ? resultBarHTML(game) : `
     <div class="guessbox">
       <label for="guessInput">Guess a player</label>
@@ -947,6 +961,7 @@ function sheetHTML(game) {
         <p class="credit"><span id="photoCredit"></span>${wiki ? `<a href="${wiki}" target="_blank" rel="noopener">Player stats from Wikipedia (CC BY-SA 4.0)</a>` : ""}</p>
       </div>
     </div>
+    ${sponsorHTML()}
     ${isDaily ? `<div class="sstats" id="sheetStats">${sheetStatsHTML()}</div>
     <p class="note">${S.me && S.me.guest ? `Playing as a guest, so your record is on this device only. <button type="button" data-act="signin">Sign in with Google</button> to keep it on every device.`
       : "Signed in. Your record follows you to any device."}</p>
@@ -965,7 +980,6 @@ function sheetHTML(game) {
       ${isDaily ? `<span class="next">Next cricketer in<b data-countdown>--:--:--</b></span>`
                 : `<button type="button" data-act="practice-again">Another practice round</button>`}
     </div>
-    ${sponsorHTML()}
     <div class="promos">
       ${isDaily ? `<button type="button" class="promo" data-go="leaderboard">${iconCup}<span><small>See where you rank on the</small><b>Leaderboard</b></span></button>
       <button type="button" class="promo" data-go="practice">${iconBall}<span><small>Keep batting with a</small><b>Practice round</b></span></button>`
@@ -1292,16 +1306,32 @@ function renderHow() {
 /* ---------- sponsor slot (set in config.js; until it's sold it invites sponsors) ---------- */
 function sponsor() {
   const sp = CONFIG.sponsor || {};
-  return sp.name && sp.url ? { paid: true, name: sp.name, line: sp.line || "", url: sp.url, logo: sp.logo || "" }
-    : { paid: false, name: "Sponsor Cricle", line: "Put your brand in front of every player who finishes the daily game", url: "sponsor.html", logo: "" };
+  return sp.name && sp.url
+    ? { paid: true, name: sp.name, line: sp.line || "", url: sp.url, logo: sp.logo || "", colour: sp.colour || "", cta: sp.cta || "Visit " + sp.name }
+    : { paid: false, name: "Your brand here", line: "Your logo, name and link on the result screen of every finished game, and on the game itself.",
+        url: "sponsor.html", logo: "", colour: "", cta: "Advertise on Cricle →" };
+}
+const adStyle = sp => sp.colour && /^#[0-9a-f]{3,8}$/i.test(sp.colour) ? ` style="--ad-accent:${sp.colour};--ad-ink:${inkFor(sp.colour)}"` : "";
+function inkFor(hex) {   // black or white text, whichever reads better on the sponsor's colour
+  let h = hex.slice(1); if (h.length < 6) h = h.split("").map(c => c + c).join("");
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#141414" : "#ffffff";
 }
 function sponsorHTML() {
   const sp = sponsor();
-  const rel = sp.paid ? "sponsored noopener" : "noopener";
-  return `<a class="sponsor${sp.paid ? " paid" : ""}" href="${esc(sp.url)}" target="${sp.paid ? "_blank" : "_self"}" rel="${rel}" data-sponsor>
-    ${sp.logo ? `<img src="${esc(sp.logo)}" alt="" width="44" height="44">` : ""}
-    <span><small>${sp.paid ? "Today's Cricle is sponsored by" : "Your brand here"}</small><b>${esc(sp.name)}</b>${sp.line ? `<span class="small" style="color:var(--board-soft)">${esc(sp.line)}</span>` : ""}</span>
-    <span class="go">${sp.paid ? "Visit" : "Find out more"} →</span></a>`;
+  const attrs = sp.paid ? `href="${esc(sp.url)}" target="_blank" rel="sponsored noopener"` : `href="sponsor.html"`;
+  const logo = sp.logo ? `<span class="logo"><img src="${esc(sp.logo)}" alt="${esc(sp.name)} logo"></span>` : `<span class="logo empty">Your logo</span>`;
+  return `<a class="ad" ${attrs} data-sponsor${adStyle(sp)}>${logo}
+    <span class="tag">${sp.paid ? "Today's Cricle is sponsored by" : "Advertise here"}</span>
+    <span class="nm">${esc(sp.name)}</span>
+    <span class="line">${esc(sp.line)}</span>
+    <span class="cta">${esc(sp.cta)}</span></a>`;
+}
+function sponsorStripHTML() {
+  const sp = sponsor();
+  if (!sp.paid) return `<a class="adstrip empty" href="sponsor.html" data-sponsor><small>Today's Cricle presented by</small><b>Your brand here</b><span class="go">Advertise →</span></a>`;
+  return `<a class="adstrip" href="${esc(sp.url)}" target="_blank" rel="sponsored noopener" data-sponsor${adStyle(sp)}>
+    <small>Today's Cricle presented by</small>${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ""}<b>${esc(sp.name)}</b></a>`;
 }
 function renderFootSponsor() {
   const sp = sponsor(), el = $("#footSponsor");
@@ -1427,7 +1457,7 @@ function wireGlobal() {
   document.addEventListener("click", e => {
     if (!e.target.closest(".bar-wrap")) closeMenu();
     const spl = e.target.closest("[data-sponsor]");
-    if (spl) track("sponsor_click", { sponsor: sponsor().name, place: spl.closest("dialog") ? "result" : "footer" });
+    if (spl) track("sponsor_click", { sponsor: sponsor().name, place: spl.closest("dialog") ? "result" : spl.classList.contains("adstrip") ? "game" : "footer" });
     const go = e.target.closest("[data-go]");
     if (go) {
       if (go.dataset.go === "practice" && (!S.practice || S.practice.done)) newPractice();

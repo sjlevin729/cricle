@@ -6,7 +6,10 @@ window.CRICLE_CONFIG = {
   supabaseKey: "sb_publishable_WwQwPyvzGjlCadH8R7g6rg_kovWJ5yk",
   // Google Analytics 4 Measurement ID (starts G-). Leave empty for no analytics and no cookie bar.
   gaMeasurementId: "G-CB63B00DCW",
-  // The sponsor shown in the result pop-up and footer. Leave name empty to show "Sponsor Cricle" instead.
-  // logo: a square image, either a full https:// address or a file put in docs/ (e.g. "sponsor-logo.png").
-  sponsor: { name: "", line: "", url: "", logo: "" },
+  // The sponsor, shown under the scoreboard, on the result screen and in the footer.
+  // Leave name empty to advertise the space instead.
+  //   logo:   a square image, a full https:// address or a file put in docs/ (e.g. "sponsor-logo.png")
+  //   colour: their brand colour for the button and border, e.g. "#c8102e"
+  //   cta:    button text, e.g. "Shop the range" (defaults to "Visit <name>")
+  sponsor: { name: "", line: "", url: "", logo: "", colour: "", cta: "" },
 };
