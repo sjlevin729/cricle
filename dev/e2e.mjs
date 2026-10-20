@@ -267,6 +267,27 @@ await F.page.goto(BASE); await F.page.waitForSelector("#consent");
 await shot(F.page, "phone-cookie-bar");
 await F.ctx.close();
 
+// ---------------------------------------------------------------- 8c. sponsor slot
+console.log("\nSponsor slot");
+check(/Sponsor the game/.test(await G.page.locator("#footSponsor").innerText()), "footer invites sponsors");
+const SP = await newDevice();
+await SP.page.route("**/config.js", async r => {
+  const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", sponsor: { name: 'Acme Bats', line: 'Hand-made in Yorkshire', url: 'https://example.com/', logo: '' } };");
+  r.fulfill({ contentType: "text/javascript", body });
+});
+await SP.page.goto(BASE); await SP.page.waitForSelector("#guessInput");
+await guess(SP.page, ansName);
+await SP.page.waitForSelector("dialog.sheet[open] a.sponsor");
+const spa = SP.page.locator("dialog.sheet a.sponsor");
+check(/acme bats/i.test(await spa.innerText()) && (await spa.getAttribute("rel")).includes("sponsored"), "paid sponsor shown in the result pop-up, marked sponsored");
+check(/Acme Bats/.test(await SP.page.locator("#footSponsor").innerText()), "paid sponsor in the footer");
+await SP.page.waitForTimeout(400);
+await shot(SP.page, "phone-result-sponsor", true);
+await SP.ctx.close();
+await A.page.goto(BASE + "sponsor.html"); await A.page.waitForSelector("form[name=sponsor]");
+check(await A.page.locator("form[name=sponsor] input[name=email]").count() === 1, "sponsor page with enquiry form");
+await shot(A.page, "phone-sponsor-page", true);
+
 // ---------------------------------------------------------------- 9. how to play, dark mode, desktop
 const H = await newDevice({ colorScheme: "dark" });
 await H.page.goto(BASE + "#how"); await H.page.waitForSelector("table");

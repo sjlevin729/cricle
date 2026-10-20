@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self'; object-src 'none'">
 <title>Cricle: guess the international cricketer</title>
 <meta name="description" content="A new international cricketer to find every day. Ten guesses, one for each wicket. Green is a match, orange is close.">
 <meta name="theme-color" content="#17311f">
@@ -325,6 +325,14 @@ body { margin: 0; min-height: 100vh; }
 .consent { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; background: var(--board); color: var(--board-ink);
   border-top: 3px solid var(--near); padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
 .consent[hidden] { display: none; }
+.sponsor { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; text-decoration: none;
+  background: rgb(255 255 255 / .05); border: 1px dashed rgb(255 255 255 / .22); color: var(--board-ink); }
+.sponsor.paid { border-style: solid; }
+.sponsor img { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: #fff; flex: none; }
+.sponsor small { display: block; color: var(--board-soft); font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
+.sponsor b { display: block; font-size: 1rem; }
+.sponsor span.go { margin-left: auto; color: var(--near); font-weight: 700; white-space: nowrap; }
+.footsponsor a { color: var(--ink); font-weight: 600; }
 .consent-in { max-width: 40rem; margin: 0 auto; display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
 .consent p { margin: 0; flex: 1 1 18rem; font-size: .9rem; color: var(--board-ink); }
 .consent a { color: var(--near); }
@@ -416,6 +424,7 @@ footer nav a { color: var(--ink); text-decoration-color: var(--near); text-decor
 <footer>
   <p>Every men's Test, ODI and T20I player for the twelve Test nations, plus ODI players from 13 associate nations.</p>
   <p id="dataLine">Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet.</p>
+  <p class="footsponsor" id="footSponsor"></p>
   <p>Not affiliated with or endorsed by the ICC, any cricket board, team or player.</p>
   <nav><a href="privacy.html">Privacy</a><button type="button" class="link" data-go="how">How to play</button><button type="button" class="link" data-act="cookies" id="cookieLink" hidden>Cookie settings</button></nav>
 </footer>
@@ -956,6 +965,7 @@ function sheetHTML(game) {
       ${isDaily ? `<span class="next">Next cricketer in<b data-countdown>--:--:--</b></span>`
                 : `<button type="button" data-act="practice-again">Another practice round</button>`}
     </div>
+    ${sponsorHTML()}
     <div class="promos">
       ${isDaily ? `<button type="button" class="promo" data-go="leaderboard">${iconCup}<span><small>See where you rank on the</small><b>Leaderboard</b></span></button>
       <button type="button" class="promo" data-go="practice">${iconBall}<span><small>Keep batting with a</small><b>Practice round</b></span></button>`
@@ -1279,6 +1289,26 @@ function renderHow() {
     </div>`;
 }
 
+/* ---------- sponsor slot (set in config.js; until it's sold it invites sponsors) ---------- */
+function sponsor() {
+  const sp = CONFIG.sponsor || {};
+  return sp.name && sp.url ? { paid: true, name: sp.name, line: sp.line || "", url: sp.url, logo: sp.logo || "" }
+    : { paid: false, name: "Sponsor Cricle", line: "Put your brand in front of every player who finishes the daily game", url: "sponsor.html", logo: "" };
+}
+function sponsorHTML() {
+  const sp = sponsor();
+  const rel = sp.paid ? "sponsored noopener" : "noopener";
+  return `<a class="sponsor${sp.paid ? " paid" : ""}" href="${esc(sp.url)}" target="${sp.paid ? "_blank" : "_self"}" rel="${rel}" data-sponsor>
+    ${sp.logo ? `<img src="${esc(sp.logo)}" alt="" width="44" height="44">` : ""}
+    <span><small>${sp.paid ? "Today's Cricle is sponsored by" : "Your brand here"}</small><b>${esc(sp.name)}</b>${sp.line ? `<span class="small" style="color:var(--board-soft)">${esc(sp.line)}</span>` : ""}</span>
+    <span class="go">${sp.paid ? "Visit" : "Find out more"} →</span></a>`;
+}
+function renderFootSponsor() {
+  const sp = sponsor(), el = $("#footSponsor");
+  el.innerHTML = sp.paid ? `Cricle is sponsored by <a href="${esc(sp.url)}" target="_blank" rel="sponsored noopener" data-sponsor>${esc(sp.name)}</a>.`
+    : `Want your brand on Cricle? <a href="sponsor.html" data-sponsor>Sponsor the game</a>.`;
+}
+
 /* ---------- analytics (Google Analytics 4, only after the visitor allows it) ---------- */
 const CONSENT_KEY = "cricle:consent";
 const GA = { id: (CONFIG.gaMeasurementId || "").trim(), on: false };
@@ -1396,6 +1426,8 @@ function wireGlobal() {
   });
   document.addEventListener("click", e => {
     if (!e.target.closest(".bar-wrap")) closeMenu();
+    const spl = e.target.closest("[data-sponsor]");
+    if (spl) track("sponsor_click", { sponsor: sponsor().name, place: spl.closest("dialog") ? "result" : "footer" });
     const go = e.target.closest("[data-go]");
     if (go) {
       if (go.dataset.go === "practice" && (!S.practice || S.practice.done)) newPractice();
@@ -1465,6 +1497,7 @@ async function start() {
   }
   $("#loading").textContent = "Loading today's cricketer…";
   initConsent();
+  renderFootSponsor();
   await connect();
   $("#loading").remove();
   $("#dataLine").textContent = `Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet, updated ${new Date(S.D.wiki_fetched_utc || S.D.built_utc).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`;
