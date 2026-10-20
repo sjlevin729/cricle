@@ -131,6 +131,30 @@ create table if not exists game.cache (
   data      jsonb
 );
 
+-- Sponsor slot numbers: one row per day, slot and sponsor. Totals only, nothing about who.
+-- views/clicks = every time; viewers/clickers = different players. sponsor '' = the unsold "Your brand here".
+create table if not exists game.ad_stats (
+  day      date not null,
+  place    text not null check (place in ('game', 'result', 'footer')),
+  sponsor  text not null default '',
+  views    int not null default 0,
+  viewers  int not null default 0,
+  clicks   int not null default 0,
+  clickers int not null default 0,
+  primary key (day, place, sponsor)
+);
+-- Short-lived, only so one player can't inflate the numbers: kept two days, then deleted by admin_cleanup.
+create table if not exists game.ad_seen (
+  day     date not null,
+  place   text not null,
+  kind    text not null,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  n       int not null default 1,
+  primary key (day, place, kind, user_id)
+);
+
+alter table game.ad_stats enable row level security;
+alter table game.ad_seen enable row level security;
 alter table game.settings enable row level security;
 alter table game.players enable row level security;
 alter table game.puzzles enable row level security;
@@ -151,7 +175,7 @@ begin
              'game_state', 'make_guess', 'open_hint', 'day_stats', 'my_stats', 'leaderboard', 'hall_of_fame',
              'past_answers', 'set_nickname', 'create_claim', 'redeem_claim', 'delete_my_account', 'health',
              'admin_export', 'admin_sync_players', 'admin_mark_guessable', 'admin_put_settings',
-             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game'))
+             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report'))
   loop execute 'drop function ' || f.sig || ' cascade'; end loop;
 end $$;
 
@@ -860,6 +884,44 @@ begin
                             'days', (select count(*) from game.puzzles));
 end $$;
 
+-- ----------------------------------------------------------------------------- sponsor slot counts
+
+-- Called by the game when a sponsor slot has been at least half on screen for a second (view), or is clicked.
+-- Each player counts at most 30 times a day per slot and kind, so nobody can pump the numbers.
+create function public.ad_event(p_place text, p_kind text, p_sponsor text default '') returns void
+language plpgsql volatile security definer set search_path = '' as $$
+declare u uuid := auth.uid(); d date := (now() at time zone 'utc')::date;
+        sp text := left(btrim(coalesce(p_sponsor, '')), 60); k int;
+begin
+  if u is null or p_place not in ('game', 'result', 'footer') or p_kind not in ('view', 'click') then return; end if;
+  insert into game.ad_seen as s (day, place, kind, user_id) values (d, p_place, p_kind, u)
+  on conflict (day, place, kind, user_id) do update set n = s.n + 1 where s.n < 30
+  returning n into k;
+  if k is null then return; end if;
+  insert into game.ad_stats as a (day, place, sponsor, views, viewers, clicks, clickers)
+  values (d, p_place, sp, (p_kind = 'view')::int, (p_kind = 'view' and k = 1)::int,
+          (p_kind = 'click')::int, (p_kind = 'click' and k = 1)::int)
+  on conflict (day, place, sponsor) do update
+    set views = a.views + excluded.views, viewers = a.viewers + excluded.viewers,
+        clicks = a.clicks + excluded.clicks, clickers = a.clickers + excluded.clickers;
+end $$;
+
+-- The sponsor's monthly numbers, run from the SQL editor:
+--   select * from admin_sponsor_report('2026-11-01', '2026-11-30');
+-- Leave out p_sponsor for everything shown in those dates (sponsor '' = "Your brand here").
+create function public.admin_sponsor_report(p_from date, p_to date, p_sponsor text default null)
+returns table (slot text, views bigint, clicks bigint, click_rate text, players_who_saw bigint, players_who_clicked bigint)
+language sql stable security definer set search_path = '' as $$
+  select coalesce(place, 'All three'), sum(views), sum(clicks),
+         case when sum(views) > 0 then round(100.0 * sum(clicks) / sum(views), 2)::text || '%' else '-' end,
+         case when grouping(place) = 0 then sum(viewers) end,   -- per slot only: one player can see all three
+         case when grouping(place) = 0 then sum(clickers) end
+    from game.ad_stats
+   where day between p_from and p_to and (p_sponsor is null or sponsor = p_sponsor)
+   group by rollup (place)
+   order by grouping(place), case place when 'game' then 1 when 'result' then 2 else 3 end
+$$;
+
 -- Weekly tidy-up (see docs/privacy.html): guest accounts that never finished a game are deleted after
 -- 30 days, and guests who haven't played for 12 months are deleted too. Google accounts are never touched.
 create function public.admin_cleanup() returns jsonb
@@ -875,6 +937,7 @@ begin
      and (select max(r.started_at) from game.results r where r.user_id = u.id) < now() - interval '12 months';
   get diagnostics old = row_count;
   delete from game.claims where created_at < now() - interval '1 day';
+  delete from game.ad_seen where day < (now() at time zone 'utc')::date - 1;
   return jsonb_build_object('guests_never_finished', idle, 'guests_inactive_a_year', old);
 end $$;
 
@@ -889,6 +952,8 @@ begin
   delete from game.day_summary;
   delete from game.board_rows;
   delete from game.cache;
+  delete from game.ad_stats;
+  delete from game.ad_seen;
   update game.settings set launch = null, updated_at = now() where id;
   return 'Reset. Run the weekly refresh to draw a new schedule from LAUNCH_DATE.';
 end $$;
@@ -903,7 +968,7 @@ begin
              'game_state', 'make_guess', 'open_hint', 'day_stats', 'my_stats', 'leaderboard', 'hall_of_fame',
              'past_answers', 'set_nickname', 'create_claim', 'redeem_claim', 'delete_my_account', 'health',
              'admin_export', 'admin_sync_players', 'admin_mark_guessable', 'admin_put_settings',
-             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game')
+             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report')
   loop
     execute format('revoke all on function %s from public, anon, authenticated, service_role', f.sig);
     if f.proname in ('day_stats', 'leaderboard', 'hall_of_fame', 'past_answers', 'health') then

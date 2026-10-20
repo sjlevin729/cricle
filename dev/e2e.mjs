@@ -275,6 +275,7 @@ await SP.page.route("**/config.js", async r => {
   const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", sponsor: { name: 'Acme Bats', line: 'Hand-made in Yorkshire', url: 'https://example.com/', logo: 'apple-touch-icon.png', colour: '#c8102e', cta: 'Shop the range' } };");
   r.fulfill({ contentType: "text/javascript", body });
 });
+sql("delete from game.ad_stats where sponsor = 'Acme Bats'");
 await SP.page.goto(BASE); await SP.page.waitForSelector("#guessInput");
 await guess(SP.page, ansName);
 await SP.page.waitForSelector("dialog.sheet[open] a.ad");
@@ -284,6 +285,15 @@ check(/Acme Bats/.test(await SP.page.locator("#footSponsor").innerText()), "paid
 check((await spa.getAttribute("href")) === "https://example.com/?utm_source=playcricle&utm_medium=sponsorship&utm_campaign=cricle&utm_content=result"
   && /utm_content=footer/.test(await SP.page.locator("#footSponsor a").getAttribute("href"))
   && /utm_content=game/.test(await SP.page.locator("a.adstrip").getAttribute("href")), "sponsor links carry tracking tags per slot");
+await SP.page.waitForTimeout(1500);   // a view needs a second on screen
+const [popup] = await Promise.all([SP.page.waitForEvent("popup"), spa.click()]);
+await popup.close();
+await SP.page.waitForTimeout(800);
+const adRow = place => sql(`select views || '/' || clicks from game.ad_stats where day = current_date and place = '${place}' and sponsor = 'Acme Bats'`);
+check(adRow("result") === "1/1", "result card: one view and one click counted (" + adRow("result") + ")");
+check(/^[1-9]\d*\/0$/.test(adRow("game")), "game strip view counted (" + adRow("game") + ")");
+check(sql("select count(*) from game.ad_stats where place = 'footer' and sponsor = 'Acme Bats' and views > 0") === "0", "footer off screen: no view counted");
+check(/^All three\|/m.test(sql("select * from admin_sponsor_report(current_date, current_date, 'Acme Bats')")), "sponsor report runs");
 await SP.page.waitForTimeout(400);
 await shot(SP.page, "phone-result-sponsor", true);
 await SP.ctx.close();

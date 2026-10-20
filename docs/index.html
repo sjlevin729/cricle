@@ -643,10 +643,11 @@ async function connect() {
       if (error) throw error;
       session = data.session;
     }
-    S.user = session.user;
+    S.user = session.user; S.token = session.access_token;
+    S.sb.auth.onAuthStateChange((_ev, s) => { S.token = s ? s.access_token : null; });
     await redeemClaim();
     await loadState();
-    S.server = "on";
+    S.server = "on"; adFlush();
   } catch (e) {
     S.server = "off";
     S.serverError = /rate limit|too many/i.test(errText(e)) ? "Lots of people are joining from your network right now. Try again in a few minutes."
@@ -1335,7 +1336,7 @@ function sponsorHTML() {
   const sp = sponsor();
   const attrs = sp.paid ? `href="${esc(adHref(sp, "result"))}" target="_blank" rel="sponsored noopener"` : `href="sponsor.html"`;
   const logo = sp.logo ? `<span class="logo"><img src="${esc(sp.logo)}" alt="${esc(sp.name)} logo"></span>` : `<span class="logo empty">Your logo</span>`;
-  return `<a class="ad" ${attrs} data-sponsor${adStyle(sp)}>${logo}
+  return `<a class="ad" ${attrs} data-sponsor="result"${adStyle(sp)}>${logo}
     <span class="tag">${sp.paid ? "Today's Cricle is sponsored by" : "Advertise here"}</span>
     <span class="nm">${esc(sp.name)}</span>
     <span class="line">${esc(sp.line)}</span>
@@ -1343,14 +1344,47 @@ function sponsorHTML() {
 }
 function sponsorStripHTML() {
   const sp = sponsor();
-  if (!sp.paid) return `<a class="adstrip empty" href="sponsor.html" data-sponsor><small>Today's Cricle presented by</small><b>Your brand here</b><span class="go">Advertise →</span></a>`;
-  return `<a class="adstrip" href="${esc(adHref(sp, "game"))}" target="_blank" rel="sponsored noopener" data-sponsor${adStyle(sp)}>
+  if (!sp.paid) return `<a class="adstrip empty" href="sponsor.html" data-sponsor="game"><small>Today's Cricle presented by</small><b>Your brand here</b><span class="go">Advertise →</span></a>`;
+  return `<a class="adstrip" href="${esc(adHref(sp, "game"))}" target="_blank" rel="sponsored noopener" data-sponsor="game"${adStyle(sp)}>
     <small>Today's Cricle presented by</small>${sp.logo ? `<img src="${esc(sp.logo)}" alt="">` : ""}<b>${esc(sp.name)}</b></a>`;
 }
 function renderFootSponsor() {
   const sp = sponsor(), el = $("#footSponsor");
-  el.innerHTML = sp.paid ? `Cricle is sponsored by <a href="${esc(adHref(sp, "footer"))}" target="_blank" rel="sponsored noopener" data-sponsor>${esc(sp.name)}</a>.`
-    : `Want your brand on Cricle? <a href="sponsor.html" data-sponsor>Sponsor the game</a>.`;
+  el.innerHTML = sp.paid ? `Cricle is sponsored by <a href="${esc(adHref(sp, "footer"))}" target="_blank" rel="sponsored noopener" data-sponsor="footer">${esc(sp.name)}</a>.`
+    : `Want your brand on Cricle? <a href="sponsor.html" data-sponsor="footer">Sponsor the game</a>.`;
+}
+
+/* ---------- sponsor slot counts (our own, no cookies: totals per slot and day, see admin_sponsor_report) ----------
+   A view = the slot at least half on screen for a second, counted once per slot per page load. */
+const AD = { q: [], viewed: new Set(), timers: new Map(), io: null };
+function adEvent(place, kind) {
+  if (!place || S.unconfigured) return;
+  if (S.server !== "on" || !S.token) { if (S.server !== "off" && AD.q.length < 20) AD.q.push([place, kind]); return; }
+  const sp = sponsor();
+  try {
+    fetch(CONFIG.supabaseUrl.replace(/\/+$/, "") + "/rest/v1/rpc/ad_event", {
+      method: "POST", keepalive: true,   // keepalive: the count still arrives if the click leaves the page
+      headers: { "Content-Type": "application/json", apikey: CONFIG.supabaseKey, Authorization: "Bearer " + S.token },
+      body: JSON.stringify({ p_place: place, p_kind: kind, p_sponsor: sp.paid ? sp.name : "" }),
+    }).catch(() => {});
+  } catch { /* counting must never break the game */ }
+}
+function adFlush() { const q = AD.q.splice(0); q.forEach(([p, k]) => adEvent(p, k)); }
+function watchAds() {
+  if (!("IntersectionObserver" in window)) return;
+  AD.io = AD.io || new IntersectionObserver(entries => entries.forEach(en => {
+    const el = en.target, place = el.dataset.sponsor;
+    if (en.isIntersecting && en.intersectionRatio >= 0.5) {
+      if (AD.viewed.has(place) || AD.timers.has(el)) return;
+      AD.timers.set(el, setTimeout(() => {
+        AD.timers.delete(el);
+        if (el.isConnected && !document.hidden && !AD.viewed.has(place)) { AD.viewed.add(place); adEvent(place, "view"); }
+      }, 1000));
+    } else if (AD.timers.has(el)) { clearTimeout(AD.timers.get(el)); AD.timers.delete(el); }
+  }), { threshold: [0, 0.5] });
+  document.querySelectorAll("[data-sponsor]").forEach(el => {
+    if (!el.dataset.watched) { el.dataset.watched = "1"; AD.io.observe(el); }
+  });
 }
 
 /* ---------- analytics (Google Analytics 4, only after the visitor allows it) ---------- */
@@ -1471,7 +1505,7 @@ function wireGlobal() {
   document.addEventListener("click", e => {
     if (!e.target.closest(".bar-wrap")) closeMenu();
     const spl = e.target.closest("[data-sponsor]");
-    if (spl) track("sponsor_click", { sponsor: sponsor().name, place: spl.closest("dialog") ? "result" : spl.classList.contains("adstrip") ? "game" : "footer" });
+    if (spl) { track("sponsor_click", { sponsor: sponsor().name, place: spl.dataset.sponsor }); adEvent(spl.dataset.sponsor, "click"); }
     const go = e.target.closest("[data-go]");
     if (go) {
       if (go.dataset.go === "practice" && (!S.practice || S.practice.done)) newPractice();
@@ -1542,6 +1576,8 @@ async function start() {
   $("#loading").textContent = "Loading today's cricketer…";
   initConsent();
   renderFootSponsor();
+  watchAds();
+  new MutationObserver(() => { clearTimeout(AD.mo); AD.mo = setTimeout(watchAds, 100); }).observe(document.body, { childList: true, subtree: true });
   await connect();
   $("#loading").remove();
   $("#dataLine").textContent = `Player data from Wikipedia (CC BY-SA 4.0), Wikidata (CC0) and Cricsheet, updated ${new Date(S.D.wiki_fetched_utc || S.D.built_utc).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}.`;
