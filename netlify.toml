@@ -4,3 +4,16 @@
   publish = "docs"
   # Only redeploy when the website itself changed (each deploy uses free-plan credits)
   ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- docs/"
+
+# One address for Google: the old Netlify address and www both move permanently to playcricle.com
+[[redirects]]
+  from = "https://cricle.netlify.app/*"
+  to = "https://playcricle.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.playcricle.com/*"
+  to = "https://playcricle.com/:splat"
+  status = 301
+  force = true
