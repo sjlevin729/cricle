@@ -1,0 +1,56 @@
+# Every Sunday: saves an encrypted copy of the game database (results, leaderboard names, accounts, the answer
+# schedule, settings, sponsor counts). The repository is public, so the copy is encrypted with the public key in
+# .github/backup_cert.pem before it is stored. Only the private key the owner keeps can open it.
+# Each copy is kept for 90 days on the run's page under Artifacts. See SETUP.md > Backups.
+# Run it by hand from the Actions tab: Weekly backup > Run workflow.
+name: Weekly backup
+
+on:
+  schedule:
+    - cron: "41 3 * * 0"          # Sundays 03:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            pipeline
+            .github/backup_cert.pem
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install requests
+
+      - name: Copy the database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python pipeline/backup.py "$RUNNER_TEMP/backup.json.gz"
+
+      - name: Encrypt it
+        run: |
+          name="cricle-backup-$(date -u +%Y-%m-%d).json.gz.cms"
+          mkdir -p "$RUNNER_TEMP/out"
+          openssl cms -encrypt -binary -aes256 -in "$RUNNER_TEMP/backup.json.gz" \
+            -out "$RUNNER_TEMP/out/$name" -outform DER .github/backup_cert.pem
+          rm -f "$RUNNER_TEMP/backup.json.gz"
+          ls -l "$RUNNER_TEMP/out"
+
+      - name: Keep it for 90 days (Actions run page > Artifacts)
+        uses: actions/upload-artifact@v6
+        with:
+          name: cricle-backup
+          path: ${{ runner.temp }}/out/*.cms
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error

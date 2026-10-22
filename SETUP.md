@@ -162,10 +162,23 @@ playcricle.com. That's normal; showing your own domain there is a paid Supabase 
   `update game.profiles set nickname = 'Player 1', auto_name = true where lower(nickname) = 'rude name';`
   Add words to the blocklist with `insert into game.banned_words values ('word', false);`
 
+## Backups
+
+- **Every Sunday** at 03:41 UTC, **Weekly backup** saves a copy of everything that can't be rebuilt: results,
+  leaderboard names, accounts (with their Google sign-in links), the answer schedule, settings, sponsor counts
+  and the players. Find it on the run's page in the Actions tab, under Artifacts. Each copy is kept 90 days.
+- The repository is public, so each copy is encrypted before it's stored. GitHub only has the public key
+  (`.github/backup_cert.pem`). The private key, `cricle-backup-private-key.pem`, is kept by the owner, never in
+  GitHub. Without it the backups can't be opened, so keep it somewhere safe that isn't this repository.
+- To open one (unzip the artifact first):
+  `openssl cms -decrypt -binary -inform DER -in cricle-backup-DATE.json.gz.cms -inkey cricle-backup-private-key.pem -out backup.json.gz`
+  It's a gzipped JSON file with one list per table. To put it back into Supabase, ask Claude.
+- If a run fails, GitHub emails you. It also refuses to save a backup with no settings or schedule in it.
+
 ## Limits worth knowing
 
 - Supabase free: 50,000 monthly active players, 500 MB of data (a few years of results at a few thousand
-  players a day), and no automatic backups. If Cricle takes off, Supabase Pro ($25 a month) adds daily
+  players a day), and no automatic backups (the Weekly backup above covers that). If Cricle takes off, Supabase Pro ($25 a month) adds daily
   backups and more room.
 - Netlify free (accounts opened since September 2025): 300 credits a month. Each deploy uses 15 and each GB
   of downloads uses 20. The Monday refresh uses about 75 a month, which leaves room for roughly 10 GB, about

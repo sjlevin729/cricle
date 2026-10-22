@@ -175,7 +175,7 @@ begin
              'game_state', 'make_guess', 'open_hint', 'day_stats', 'my_stats', 'leaderboard', 'hall_of_fame',
              'past_answers', 'set_nickname', 'create_claim', 'redeem_claim', 'delete_my_account', 'health',
              'admin_export', 'admin_sync_players', 'admin_mark_guessable', 'admin_put_settings',
-             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report'))
+             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report', 'admin_backup'))
   loop execute 'drop function ' || f.sig || ' cascade'; end loop;
 end $$;
 
@@ -941,6 +941,31 @@ begin
   return jsonb_build_object('guests_never_finished', idle, 'guests_inactive_a_year', old);
 end $$;
 
+-- Weekly backup (.github/workflows/backup.yml): one page of one table at a time, in a fixed order so paging is
+-- stable. Caches, claims and ad_seen are left out: they rebuild themselves or expire within days.
+create function public.admin_backup(p_table text, p_offset int default 0, p_limit int default 5000) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare q text; out jsonb;
+begin
+  q := case p_table
+    when 'settings'     then 'select * from game.settings order by id'
+    when 'players'      then 'select * from game.players order by id'
+    when 'puzzles'      then 'select * from game.puzzles order by day'
+    when 'results'      then 'select * from game.results order by user_id, day'
+    when 'profiles'     then 'select * from game.profiles order by user_id'
+    when 'banned_words' then 'select * from game.banned_words order by word'
+    when 'ad_stats'     then 'select * from game.ad_stats order by day, place, sponsor'
+    when 'users'        then 'select id, is_anonymous, email, raw_user_meta_data, created_at, last_sign_in_at
+                                from auth.users order by id'
+    when 'identities'   then 'select user_id, provider, provider_id, identity_data, created_at
+                                from auth.identities order by provider, provider_id'
+  end;
+  if q is null then raise exception 'unknown table %', p_table using errcode = '22023'; end if;
+  execute format('select coalesce(jsonb_agg(to_jsonb(t)), ''[]''::jsonb) from (%s offset %s limit %s) t',
+                 q, greatest(p_offset, 0), least(greatest(p_limit, 1), 20000)) into out;
+  return out;
+end $$;
+
 -- Start again from scratch: deletes every result and the whole schedule, and clears the launch date.
 -- Only for before going public. It can only be run from the SQL editor:  select admin_reset_game();
 create function public.admin_reset_game() returns text
@@ -968,7 +993,7 @@ begin
              'game_state', 'make_guess', 'open_hint', 'day_stats', 'my_stats', 'leaderboard', 'hall_of_fame',
              'past_answers', 'set_nickname', 'create_claim', 'redeem_claim', 'delete_my_account', 'health',
              'admin_export', 'admin_sync_players', 'admin_mark_guessable', 'admin_put_settings',
-             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report')
+             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report', 'admin_backup')
   loop
     execute format('revoke all on function %s from public, anon, authenticated, service_role', f.sig);
     if f.proname in ('day_stats', 'leaderboard', 'hall_of_fame', 'past_answers', 'health') then
