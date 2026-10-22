@@ -30,6 +30,8 @@ create table if not exists game.settings (
   updated_at  timestamptz not null default now()
 );
 insert into game.settings (id) values (true) on conflict do nothing;
+-- fewest results before percentages or a leaderboard are shown (see game.crowd)
+alter table game.settings add column if not exists min_crowd int not null default 20;
 
 create table if not exists game.players (
   id         int primary key,                      -- English Wikipedia page id (stable across refreshes)
@@ -480,6 +482,36 @@ language sql volatile set search_path = '' as $$
   on conflict (day) do nothing
 $$;
 
+-- Results are only ever shown as whole percentages, never counts, so nobody can tell how many people play.
+-- Below game.min_crowd() results there's nothing shown at all, because small numbers are easy to work back
+-- from (33% / 67% means three players).
+create function game.min_crowd() returns int
+language sql stable set search_path = '' as $$ select coalesce((select min_crowd from game.settings where id), 20) $$;
+
+-- c = counts[1..11] (solved in 1..10, then all out); mine = the caller's bucket, or null.
+-- Returns {enough, pct[11], solved_pct, avg, beat}. A bucket with anyone in it shows at least 1%.
+create function game.crowd(c int[], mine int) returns jsonb
+language plpgsql stable set search_path = '' as $$
+declare total int := 0; solved int; worse int := 0; same int; sumg int := 0; pct int[] := '{}';
+begin
+  for k in 1 .. 11 loop total := total + coalesce(c[k], 0); end loop;
+  if total < game.min_crowd() then return jsonb_build_object('enough', false); end if;
+  solved := total - coalesce(c[11], 0);
+  for k in 1 .. 11 loop
+    pct := pct || case when coalesce(c[k], 0) = 0 then 0 else greatest(1, round(100.0 * c[k] / total))::int end;
+    if k <= 10 then sumg := sumg + k * coalesce(c[k], 0); end if;
+  end loop;
+  if mine is not null then
+    for k in mine + 1 .. 11 loop worse := worse + coalesce(c[k], 0); end loop;
+    same := coalesce(c[mine], 0);
+  end if;
+  return jsonb_build_object('enough', true, 'pct', to_jsonb(pct),
+    'solved_pct', round(100.0 * solved / total)::int,
+    'avg', case when solved > 0 then round(sumg::numeric / solved, 1) end,
+    'beat', case when mine is not null and same >= 1 and total > 1
+                 then round(100.0 * (worse + (same - 1) / 2.0) / (total - 1))::int end);
+end $$;
+
 create function public.day_stats(p_day int default null) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -501,7 +533,7 @@ begin
   if auth.uid() is not null then
     select game.bucket(r) into mine from game.results r where r.user_id = auth.uid() and r.day = d and r.done;
   end if;
-  return jsonb_build_object('day', d, 'counts', to_jsonb(c), 'mine', mine);
+  return jsonb_build_object('day', d, 'mine', mine) || game.crowd(c, mine);
 end $$;
 
 -- My record across every device I've signed in on.
@@ -568,7 +600,9 @@ declare
   board jsonb; me jsonb; total int;
   my_points int; my_played int; my_won int; my_rank int;
 begin
-  if t is null or t < 0 then return jsonb_build_object('period', p_period, 'rows', '[]'::jsonb, 'players', 0); end if;
+  -- Only the top 10 are ever sent, and never how many are on the board (see game.crowd).
+  p_limit := least(greatest(coalesce(p_limit, 10), 1), 10);
+  if t is null or t < 0 then return jsonb_build_object('period', p_period, 'rows', '[]'::jsonb); end if;
   d1 := t;
   d0 := case p_period
           when 'today' then t
@@ -607,13 +641,22 @@ begin
     if my_played > 0 then
       select 1 + count(*) into my_rank from game.board_rows b
        where b.period = p_period and b.user_id <> u and (b.points < my_points or (b.points = my_points and b.won > my_won));
-      me := jsonb_build_object('rank', my_rank, 'name', (select nickname from game.profiles where user_id = u),
+      if not exists (select 1 from game.board_rows where period = p_period and user_id = u) then total := coalesce(total, 0) + 1; end if;
+      -- outside the top 10: no position number, just "top x%", and only once there are enough players
+      me := jsonb_build_object('rank', case when my_rank <= 10 then my_rank end,
+                               'top_pct', case when my_rank > 10 and total >= game.min_crowd()
+                                               then greatest(1, ceil(100.0 * my_rank / total))::int end,
+                               'name', (select nickname from game.profiles where user_id = u),
                                'points', my_points, 'played', my_played, 'won', my_won, 'me', true);
-      if not exists (select 1 from game.board_rows where period = p_period and user_id = u) then total := total + 1; end if;
     end if;
   end if;
+  -- a short board gives the numbers away too, so it stays hidden until enough people are on it
+  if coalesce(total, 0) < game.min_crowd() then
+    board := '[]'::jsonb;
+    if me is not null then me := me || jsonb_build_object('rank', null, 'top_pct', null); end if;
+  end if;
   return jsonb_build_object('period', p_period, 'from_day', d0, 'to_day', d1, 'days', n, 'miss_score', s.miss_score,
-                            'rows', board, 'me', me, 'players', coalesce(total, 0));
+                            'rows', board, 'me', me, 'enough', coalesce(total, 0) >= game.min_crowd());
 end $$;
 
 -- All-time honours: longest winning streak, most wins, best average (20+ games), most weeks won.
@@ -693,7 +736,7 @@ begin
   perform game.summarise_past_days();
   select coalesce(jsonb_agg(jsonb_build_object(
            'day', z.day, 'id', p.id, 'name', p.name, 'countries', to_jsonb(p.countries), 'role', p.role,
-           'matches', game.matches(p), 'players', s.players, 'solved', s.solved, 'avg', s.avg_guesses,
+           'matches', game.matches(p), 'crowd', game.crowd(coalesce(s.counts, '{}'), null) - 'pct' - 'beat',
            'mine', (select jsonb_build_object('won', r.won, 'n', cardinality(r.guesses), 'hints', game.hint_count(r.hints))
                       from game.results r where r.user_id = u and r.day = z.day and r.done)) order by z.day desc), '[]'::jsonb)
     into res

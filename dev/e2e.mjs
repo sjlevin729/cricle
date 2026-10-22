@@ -17,6 +17,7 @@ const wrongNames = (n, avoid) => sql(`select name from game.players where pool a
   and name in (select name from game.players group by name having count(*) = 1) order by tests desc nulls last limit ${n}`).split("\n");
 
 sql("delete from game.results; delete from game.claims; delete from game.profiles; delete from game.day_summary; delete from game.board_rows; delete from game.cache; delete from auth.users;");
+sql("update game.settings set min_crowd = 20");   // the real rule to start with; lowered below so boards have content
 
 const browser = await chromium.launch();
 const errors = [];
@@ -62,12 +63,23 @@ check(/Test averages|Hasn't played a Test/.test(await A.page.locator(".hint.open
 await shot(A.page, "phone-play", true);
 await guess(A.page, ansName);
 await A.page.waitForSelector("dialog.sheet[open]", { timeout: 5000 });
-await A.page.waitForFunction(() => /player/.test(document.querySelector(".crowd-sum")?.textContent || "") && document.querySelector("#rankLine")?.textContent.includes("leaderboard"));
-const sheet = await A.page.locator("dialog.sheet").innerText();
+await A.page.waitForFunction(() => /Not enough results/.test(document.querySelector(".crowd-sum")?.textContent || "") && document.querySelector("#rankLine")?.textContent.includes("leaderboard"));
+let sheet = await A.page.locator("dialog.sheet").innerText();
 check(/got it in 6/i.test(sheet) && /1 hint/i.test(sheet), "result pop-up: got it in 6 with 1 hint");
 check(sheet.toUpperCase().includes(ansName.toUpperCase()), "answer revealed in the pop-up");
-check(/1 player · 100% solved/.test(sheet), "crowd line counts me");
+check(/Not enough results yet today/.test(sheet) && !(await A.page.locator(".histo").count()), "too few results: no chart");
+check(/You're on today's leaderboard/.test(sheet) && !/1st/.test(sheet), "too few results: no position");
+check(!/\b\d+ players?\b/i.test(sheet) && !/ of \d+ /.test(sheet), "no player count anywhere in the pop-up");
+await shot(A.page, "phone-result-few");
+sql("update game.settings set min_crowd = 1");
+await A.page.click("[data-act=close-result]");
+await A.page.click("[data-act=show-result]");
+await A.page.waitForFunction(() => /solved/.test(document.querySelector(".crowd-sum")?.textContent || "") && /1st/.test(document.querySelector("#rankLine")?.textContent || ""));
+sheet = await A.page.locator("dialog.sheet").innerText();
+check(/100% also got it in 6/.test(sheet) && /100% solved/.test(sheet), "crowd line in percentages: " + (sheet.match(/.*solved.*/) || [""])[0]);
+check((await A.page.locator(".histo .n").allInnerTexts()).every(t => /^\d+%$/.test(t)), "bars labelled with percentages");
 check(/1st/.test(sheet), "rank line shows 1st");
+check(!/\b\d+ players?\b/i.test(sheet), "still no player count");
 check(/playing as a guest/i.test(sheet), "guest note with sign-in");
 await A.page.waitForTimeout(400);
 await shot(A.page, "phone-result");
@@ -95,8 +107,17 @@ await A.page.click("#menuBtn"); await A.page.click("#menu [data-go=leaderboard]"
 await A.page.waitForSelector(".board li");
 const board = await A.page.locator(".board").innerText();
 check((await A.page.locator(".board li").count()) === 3, "three players on today's board");
+check(/Top 10 so far today/.test(await A.page.locator("#boardBody").innerText()) && !/\b\d+ players?\b/i.test(await A.page.locator("#boardBody").innerText()), "board says Top 10, no player count");
 check(/\(you\)/.test(board), "I'm marked on the board");
 check(A.page.url().endsWith("#leaderboard"), "address shows #leaderboard");
+sql("update game.settings set min_crowd = 20; delete from game.cache;");
+await A.page.reload(); await A.page.waitForSelector("#boardBody .state");
+await A.page.waitForFunction(() => /appears once enough people/.test(document.querySelector("#boardBody")?.textContent || ""));
+const few = await A.page.locator("#boardBody").innerText();
+check(/Your score: \d+/.test(few) && !(await A.page.locator(".board li").count()), "too few on the board: hidden, own score shown");
+await shot(A.page, "phone-board-few");
+sql("update game.settings set min_crowd = 1; delete from game.cache;");
+await A.page.reload(); await A.page.waitForSelector(".board li");
 await A.page.click("[data-act=rename]");
 await A.page.fill("#nameInput", "ab"); await A.page.click("#nameForm button[type=submit]");
 await A.page.waitForSelector(".namebox .err");

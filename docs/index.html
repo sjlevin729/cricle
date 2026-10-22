@@ -216,7 +216,7 @@ dialog.sheet[open] { animation: rise .34s cubic-bezier(.2,.8,.2,1); }
 .crowd h3 { text-align: center; font: 700 1.08rem/1.2 var(--body); text-transform: none; letter-spacing: 0; }
 .histo { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 5px; align-items: end; height: 132px; }
 .histo .col { display: flex; flex-direction: column; justify-content: flex-end; gap: 5px; height: 100%; text-align: center; min-width: 0; }
-.histo .n { font-size: .8rem; color: var(--board-soft); font-variant-numeric: tabular-nums; }
+.histo .n { font-size: .7rem; letter-spacing: -.02em; color: var(--board-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .histo .hbar { display: block; background: var(--board-2); border-radius: 5px 5px 2px 2px; min-height: 5px; }
 .histo .col.me .hbar { background: var(--hit); }
 .histo .col.me .n { color: var(--board-ink); font-weight: 700; }
@@ -366,6 +366,7 @@ body.has-consent .snack { bottom: 120px; }
 .board li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .board li:last-child { border-bottom: 0; }
 .board .rk { font: 800 1.2rem/1 var(--display); color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: center; }
+.board .rk.pct { font: 700 .72rem/1.1 var(--body); }
 .board .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board .sub { display: block; font-size: .78rem; color: var(--ink-soft); font-weight: 400; }
 .board .pts { font: 800 1.35rem/1 var(--display); font-variant-numeric: tabular-nums; text-align: right; }
@@ -1053,29 +1054,30 @@ async function showPhoto(a) {
 
 /* ---------- how everyone did today ---------- */
 function crowdHTML(game) {
+  // Only percentages come from the server, never counts, and nothing until a day has enough results.
   const mine = game.won ? game.rows.length : 11;
-  const counts = S.crowd && S.crowd.day === game.day ? S.crowd.counts.slice() : Array(11).fill(0);
-  if (!S.crowd || S.crowd.mine == null) counts[mine - 1]++;   // not counted yet: include me
-  const total = counts.reduce((x, y) => x + y, 0), solved = total - counts[10];
-  const avg = solved ? counts.slice(0, 10).reduce((acc, c, k) => acc + c * (k + 1), 0) / solved : 0;
-  const worse = counts.slice(mine).reduce((x, y) => x + y, 0), same = counts[mine - 1];
-  const beat = total > 1 ? (worse + (same - 1) / 2) / (total - 1) : null;
-  const max = Math.max(1, ...counts);
-  const cols = counts.map((c, k) => `<div class="col${k === mine - 1 ? " me" : ""}"><span class="n">${fmt(c)}</span>
-    <span class="hbar" style="height:${Math.max(5, Math.round(c / max * 96))}px"></span></div>`).join("");
-  const xs = counts.map((_, k) => `<span class="${k === mine - 1 ? "me" : ""}">${k < 10 ? k + 1 : "✗"}</span>`).join("");
-  const pct = v => `${Math.round(v * 100)}%`;
-  const beatTxt = beat == null ? "you're the first to finish today" : `you beat ${pct(beat)}`;
-  const sum = `${plural(total, "player")} · ${pct(solved / total)} solved · average ${solved ? avg.toFixed(1) : "–"} guesses · <b>${beatTxt}</b>`;
-  return `<h3>How everyone did today (so far)</h3>
-    <div class="histo" role="img" aria-label="Results today: ${counts.map((c, k) => `${c} ${k < 10 ? "in " + (k + 1) : "all out"}`).join(", ")}">${cols}</div>
+  const cr = S.crowd && S.crowd.day === game.day ? S.crowd : null;
+  const head = `<h3>How everyone did today (so far)</h3>`;
+  if (!cr) return `${head}<p class="crowd-sum">Counting today's results…</p>`;
+  if (!cr.enough) return `${head}<p class="crowd-sum">Not enough results yet today to compare. Check back later.</p>`;
+  const pcts = cr.pct, max = Math.max(1, ...pcts);
+  const label = k => k < 10 ? "in " + (k + 1) : "all out";
+  const cols = pcts.map((p, k) => `<div class="col${k === mine - 1 ? " me" : ""}"><span class="n">${p}%</span>
+    <span class="hbar" style="height:${Math.max(5, Math.round(p / max * 96))}px"></span></div>`).join("");
+  const xs = pcts.map((_, k) => `<span class="${k === mine - 1 ? "me" : ""}">${k < 10 ? k + 1 : "✗"}</span>`).join("");
+  const same = `<b>${pcts[mine - 1]}% ${mine <= 10 ? `also got it in ${mine}` : "were also all out"}</b>`;
+  const sum = `${same} · ${cr.solved_pct}% solved · average ${cr.avg != null ? Number(cr.avg).toFixed(1) : "–"} guesses${cr.beat != null ? ` · you beat ${cr.beat}%` : ""}`;
+  return `${head}
+    <div class="histo" role="img" aria-label="Results today: ${pcts.map((p, k) => `${p}% ${label(k)}`).join(", ")}">${cols}</div>
     <div class="histo-x" aria-hidden="true">${xs}</div>
-    <p class="crowd-sum">${S.crowd ? sum : "Counting today's results…"}</p>`;
+    <p class="crowd-sum">${sum}</p>`;
 }
 function rankHTML() {
   const me = S.rank && S.rank.me;
   if (!me) return "";
-  return `You're <b>${ordinal(me.rank)}</b> of ${fmt(S.rank.players)} on today's leaderboard, as ${esc(me.name)}. <button type="button" data-go="leaderboard">See the leaderboard</button>`;
+  const where = me.rank ? `You're <b>${ordinal(me.rank)}</b> on today's leaderboard`
+    : me.top_pct ? `You're in the <b>top ${me.top_pct}%</b> on today's leaderboard` : `You're on today's leaderboard`;
+  return `${where}, as ${esc(me.name)}. <button type="button" data-go="leaderboard">See the leaderboard</button>`;
 }
 
 /* ---------- story image (1080 x 1920, no spoilers) ---------- */
@@ -1144,7 +1146,7 @@ async function loadBoard(tab, force) {
   const hit = S.boards[tab];
   if (hit && !force && Date.now() - hit.at < 30000) return;
   try {
-    const data = tab === "fame" ? await call("hall_of_fame") : await call("leaderboard", { p_period: tab, p_limit: 100 });
+    const data = tab === "fame" ? await call("hall_of_fame") : await call("leaderboard", { p_period: tab, p_limit: 10 });
     S.boards[tab] = { at: Date.now(), data };
   } catch (e) { S.boards[tab] = { at: Date.now(), error: errText(e) }; }
 }
@@ -1171,15 +1173,18 @@ function renderLeaderboard() {
   if (!entry || Date.now() - entry.at >= 30000) loadBoard(tab).then(() => { if (S.view === "leaderboard" && S.boardTab === tab) renderLeaderboard(); });
 }
 function boardHTML(d, tab) {
-  if (!d.rows.length) return `<p class="state">${tab === "today" ? "No one has finished today's game yet. Be the first." : "No results yet for this period."}</p>`;
   const period = tab !== "today";
-  const row = (r, extra = "") => `<li class="${r.me ? "me" : ""}${r.rank === 1 ? " top1" : ""}${extra}"><span class="rk">${r.rank}</span>
+  if (!d.enough) {
+    const mine = d.me ? `<br><br>Your score: <b>${d.me.points}</b> ${d.me.points === 1 ? "point" : "points"}${period ? `, ${d.me.played} of ${d.days} day${d.days === 1 ? "" : "s"} played` : ""}.` : "";
+    return `<p class="state">The ${period ? "board for this period" : "board for today"} appears once enough people have finished. Check back later.${mine}</p>`;
+  }
+  const row = (r, extra = "") => `<li class="${r.me ? "me" : ""}${r.rank === 1 ? " top1" : ""}${extra}"><span class="rk${r.rank ? "" : " pct"}">${r.rank ?? (r.top_pct ? `top ${r.top_pct}%` : "–")}</span>
       <span class="nm">${esc(r.name)}${r.me ? " (you)" : ""}<span class="sub">${period ? `${r.played} of ${d.days} day${d.days === 1 ? "" : "s"} played, ${r.won} won` : r.won ? "Solved" : "All out"}</span></span>
       <span class="pts">${r.points}<small>${r.points === 1 ? "point" : "points"}</small></span></li>`;
   const shown = d.rows.map(r => row(r)).join("");
   const meShown = d.rows.some(r => r.me);
   const meRow = d.me && !meShown ? `<li class="gap">…</li>${row(d.me)}` : "";
-  const range = period ? `<p class="small muted" style="margin:0;text-align:center">${dateText(d.from_day)} to ${dateText(d.to_day)} · ${plural(d.players, "player")}</p>` : `<p class="small muted" style="margin:0;text-align:center">${plural(d.players, "player")} so far today</p>`;
+  const range = `<p class="small muted" style="margin:0;text-align:center">${period ? `${dateText(d.from_day)} to ${dateText(d.to_day)} · ` : ""}Top 10${period ? "" : " so far today"}</p>`;
   const nudge = !d.me && S.game && !S.game.done && tab === "today" ? `<p class="small muted" style="margin:0;text-align:center">Finish today's game to get on the board.</p>` : "";
   return `${range}<ol class="board">${shown}${meRow}</ol>${nudge}`;
 }
@@ -1251,7 +1256,8 @@ async function renderArchive() {
   const items = S.archive.map(x => {
     const m = x.mine;
     const you = m ? (m.won ? `You: won by ${plural(wicketsInHand(m.n, true), "wicket")}${m.hints ? " " + "💡".repeat(m.hints) : ""}` : "You: all out") : "Not played";
-    const crowd = x.players ? `${plural(x.players, "player")} · ${Math.round(x.solved / x.players * 100)}% solved${x.avg != null ? ` · average ${Number(x.avg).toFixed(1)} guesses` : ""}` : "No one played";
+    const c = x.crowd || {};
+    const crowd = c.enough ? `${c.solved_pct}% solved${c.avg != null ? ` · average ${Number(c.avg).toFixed(1)} guesses` : ""}` : "Not enough results to compare";
     const canReplay = S.byId.has(x.id);
     return `<li><div class="t"><b>#${x.day + 1} · ${esc(x.name)}</b><span class="small muted">${dateText(x.day)}</span></div>
       <span class="small">${esc(countryText(x.countries))} · ${esc(ROLE_NAME[x.role] || "?")} · ${fmt(x.matches)} international matches</span>

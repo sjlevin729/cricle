@@ -268,7 +268,7 @@ def test_boards():
     check(got["Alpha Tester"] == exp_a, f"week total for a: {got['Alpha Tester']} vs {exp_a}")
     check(wk["rows"][0]["points"] <= wk["rows"][1]["points"], "week board sorted")
     mo = a.rpc("leaderboard", p_period="month")
-    check(mo["players"] == 3 and mo["from_day"] <= wk["from_day"], "month board")
+    check(len(mo["rows"]) == 3 and "players" not in mo and mo["from_day"] <= wk["from_day"], "month board, no player count")
     st = a.rpc("my_stats")
     check(st["played"] == t + 1 and st["wins"] == t + 1 and st["current_streak"] == t + 1 and st["best_streak"] == t + 1,
           f"a's stats {st}")
@@ -276,12 +276,13 @@ def test_boards():
     stc = c.rpc("my_stats")
     check(stc["played"] == 2 and stc["wins"] == 1 and stc["current_streak"] == 1 and stc["dist"][10] == 1, f"c's stats {stc}")
     ds = a.rpc("day_stats", p_day=t)
-    check(ds["counts"][1] == 1 and ds["counts"][3] == 1 and ds["counts"][7] == 1 and sum(ds["counts"]) == 3 and ds["mine"] == 4,
-          f"day stats {ds}")
+    check("counts" not in ds and ds["enough"] and ds["pct"][1] == 33 and ds["pct"][3] == 33 and ds["pct"][7] == 33
+          and sum(ds["pct"]) == 99 and ds["mine"] == 4 and ds["beat"] == 50 and ds["solved_pct"] == 100, f"day stats {ds}")
     pa = a.rpc("past_answers")
     check(len(pa) == t and all(x["day"] < t for x in pa), "past answers exclude today")
     if pa:
-        check(pa[-1]["day"] == 0 and pa[-1]["players"] == 3 and pa[-1]["solved"] == 2 and pa[-1]["mine"]["n"] == 3, f"day 0 summary {pa[-1]}")
+        check(pa[-1]["day"] == 0 and pa[-1]["crowd"]["enough"] and pa[-1]["crowd"]["solved_pct"] == 67
+              and "players" not in pa[-1] and "pct" not in pa[-1]["crowd"] and pa[-1]["mine"]["n"] == 3, f"day 0 summary {pa[-1]}")
         check(pa[-1]["id"] == answer(0), "past answer id")
     hof = a.rpc("hall_of_fame")
     check(hof["streaks"][0]["value"] == t + 1, f"hall of fame streak {hof['streaks'][:2]}")
@@ -392,6 +393,34 @@ def test_schedule_rules():
     print("schedule rules ok")
 
 
+def test_privacy():
+    """Nobody can tell how many people play: percentages only, top 10 only, nothing below min_crowd."""
+    t = today()
+    clear_results()
+    users = [Client.guest() for _ in range(12)]
+    for u in users[:11]:
+        u.rpc("make_guess", p_day=t, p_player=answer(t))
+    last = users[11]
+    for w in wrong_ids(t, 2):
+        last.rpc("make_guess", p_day=t, p_player=w)
+    last.rpc("make_guess", p_day=t, p_player=answer(t))
+    lb = last.rpc("leaderboard", p_period="today", p_limit=100)
+    check(len(lb["rows"]) == 10 and "players" not in lb and lb["enough"], f"top 10 only, no count ({len(lb['rows'])} rows)")
+    check(lb["me"]["rank"] is None and lb["me"]["top_pct"] == 100, f"outside the top 10: top x% only {lb['me']}")
+    ds = last.rpc("day_stats", p_day=t)
+    check(ds["pct"][0] == 92 and ds["pct"][2] == 8 and ds["beat"] == 0, f"percentages {ds}")
+    sql("update game.settings set min_crowd = 20")
+    try:
+        ds = last.rpc("day_stats", p_day=t)
+        check(ds == {"day": t, "mine": 3, "enough": False}, f"too few results: nothing shown {ds}")
+        lb = last.rpc("leaderboard", p_period="today")
+        check(lb["rows"] == [] and lb["enough"] is False and lb["me"]["rank"] is None and lb["me"]["top_pct"] is None
+              and lb["me"]["points"] == 3, f"too few on the board: only my own score {lb}")
+    finally:
+        sql("update game.settings set min_crowd = 1")
+    print("privacy ok")
+
+
 def test_cache():
     """Busy game: boards are served from the cache, but my own row is always fresh."""
     t = today()
@@ -400,15 +429,14 @@ def test_cache():
     for u in users[:2]:
         u.rpc("make_guess", p_day=t, p_player=answer(t))
     lb = users[0].rpc("leaderboard", p_period="today")
-    check(lb["players"] == 2, "two on the board")
+    check(len(lb["rows"]) == 2, "two on the board")
     sql("update game.cache set size = 5000 where key = 'board:today'")      # pretend it's busy: 60 s cache
     late = users[2]
     for w in wrong_ids(t, 2):
         late.rpc("make_guess", p_day=t, p_player=w)
     late.rpc("make_guess", p_day=t, p_player=answer(t))
     lb = late.rpc("leaderboard", p_period="today")
-    check(len(lb["rows"]) == 2 and lb["me"]["points"] == 3 and lb["me"]["rank"] == 3 and lb["players"] == 5001,
-          f"cached board, fresh me row: {lb['me']} players {lb['players']}")
+    check(len(lb["rows"]) == 2 and lb["me"]["points"] == 3 and lb["me"]["rank"] == 3, f"cached board, fresh me row: {lb['me']}")
     sql("update game.cache set built_at = built_at - interval '2 minutes' where key = 'board:today'")
     lb = late.rpc("leaderboard", p_period="today")
     check(len(lb["rows"]) == 3 and lb["rows"][2]["me"] is True, "rebuilt once the cache is old")
@@ -439,6 +467,7 @@ def test_cleanup():
 
 if __name__ == "__main__":
     sql("delete from game.results; delete from game.claims; delete from game.profiles; delete from auth.users;")
+    sql("update game.settings set min_crowd = 1")   # the tests use a handful of players; test_privacy checks the real rule
     clear_results()
     test_tile_parity()
     test_permissions()
@@ -449,6 +478,7 @@ if __name__ == "__main__":
     test_day_change()
     test_schedule_rules()
     test_cache()
+    test_privacy()
     test_cleanup()
     print("\nALL PASSED" if not FAILS else f"\n{len(FAILS)} FAILURES")
     sys.exit(1 if FAILS else 0)
