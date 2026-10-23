@@ -1,5 +1,5 @@
-# Once a day: checks the game server answers and has answers scheduled well ahead. If anything is wrong
-# this run fails and GitHub emails you. It also stops a free Supabase project pausing for inactivity.
+# Once a day: checks the game server answers, has answers scheduled well ahead, and holds exactly the same players
+# as the live website. If anything is wrong this run fails and GitHub emails you. It also stops a free Supabase project pausing for inactivity.
 name: Daily health check
 
 on:
@@ -22,4 +22,4 @@ jobs:
             .github/health_check.py
           sparse-checkout-cone-mode: false
       - name: Ask the game server how it's doing
-        run: python3 .github/health_check.py docs/config.js
+        run: python3 .github/health_check.py docs/config.js https://playcricle.com

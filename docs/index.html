@@ -1255,8 +1255,9 @@ async function renderArchive() {
   }
   const items = S.archive.map(x => {
     const m = x.mine;
-    const you = m ? (m.won ? `You: won by ${plural(wicketsInHand(m.n, true), "wicket")}${m.hints ? " " + "💡".repeat(m.hints) : ""}` : "You: all out") : "Not played";
     const c = x.crowd || {};
+    const beat = m && c.enough && c.beat != null ? ` · you beat ${c.beat}%` : "";
+    const you = m ? (m.won ? `You: won by ${plural(wicketsInHand(m.n, true), "wicket")}${m.hints ? " " + "💡".repeat(m.hints) : ""}` : "You: all out") + beat : "Not played";
     const crowd = c.enough ? `${c.solved_pct}% solved${c.avg != null ? ` · average ${Number(c.avg).toFixed(1)} guesses` : ""}` : "Not enough results to compare";
     const canReplay = S.byId.has(x.id);
     return `<li><div class="t"><b>#${x.day + 1} · ${esc(x.name)}</b><span class="small muted">${dateText(x.day)}</span></div>

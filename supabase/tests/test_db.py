@@ -287,7 +287,8 @@ def test_boards():
     check(len(pa) == t and all(x["day"] < t for x in pa), "past answers exclude today")
     if pa:
         check(pa[-1]["day"] == 0 and pa[-1]["crowd"]["enough"] and pa[-1]["crowd"]["solved_pct"] == 67
-              and "players" not in pa[-1] and "pct" not in pa[-1]["crowd"] and pa[-1]["mine"]["n"] == 3, f"day 0 summary {pa[-1]}")
+              and "players" not in pa[-1] and "pct" not in pa[-1]["crowd"] and pa[-1]["mine"]["n"] == 3
+              and pa[-1]["crowd"]["beat"] == 50, f"day 0 summary {pa[-1]}")
         check(pa[-1]["id"] == answer(0), "past answer id")
     hof = a.rpc("hall_of_fame")
     check(hof["streaks"][0]["value"] == t + 1, f"hall of fame streak {hof['streaks'][:2]}")

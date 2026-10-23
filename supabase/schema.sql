@@ -736,7 +736,9 @@ begin
   perform game.summarise_past_days();
   select coalesce(jsonb_agg(jsonb_build_object(
            'day', z.day, 'id', p.id, 'name', p.name, 'countries', to_jsonb(p.countries), 'role', p.role,
-           'matches', game.matches(p), 'crowd', game.crowd(coalesce(s.counts, '{}'), null) - 'pct' - 'beat',
+           'matches', game.matches(p),
+           'crowd', game.crowd(coalesce(s.counts, '{}'),
+                               (select game.bucket(r) from game.results r where r.user_id = u and r.day = z.day and r.done)) - 'pct',
            'mine', (select jsonb_build_object('won', r.won, 'n', cardinality(r.guesses), 'hints', game.hint_count(r.hints))
                       from game.results r where r.user_id = u and r.day = z.day and r.done)) order by z.day desc), '[]'::jsonb)
     into res
@@ -835,9 +837,21 @@ begin
 end $$;
 
 -- For the daily health check: is there a puzzle scheduled well ahead?
+-- One fingerprint of every guessable player's tile facts. The daily health check works out the same thing from
+-- the website's data/players.json and emails the owner (by failing) if they ever differ. Keep the two in step:
+-- .github/health_check.py builds the identical string.
+create function game.players_fingerprint() returns text
+language sql stable set search_path = '' as $$
+  select md5(coalesce(string_agg(id || ':' || array_to_string(countries, ',') || ':' || coalesce(role, '') || ':' ||
+           coalesce(bats, '') || ':' || coalesce(bowls, '') || ':' || coalesce(debut::text, '') || ':' ||
+           coalesce(tests::text, '') || ':' || coalesce(odis::text, '') || ':' || coalesce(t20is::text, '') || ':' ||
+           coalesce(runs::text, '') || ':' || coalesce(wickets::text, ''), '|' order by id), ''))
+    from game.players where guessable
+$$;
+
 create function public.health() returns jsonb
 language sql stable security definer set search_path = '' as $$
-  select jsonb_build_object('ok', true, 'today', game.today(),
+  select jsonb_build_object('ok', true, 'today', game.today(), 'players_fingerprint', game.players_fingerprint(),
     'scheduled_ahead', (select count(*) from game.puzzles where day >= coalesce(game.today(), 0)),
     'players', (select count(*) from game.players where guessable),
     'updated_at', (select updated_at from game.settings where id))
