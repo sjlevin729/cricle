@@ -141,7 +141,12 @@ def test_tile_parity():
     import tempfile
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
         json.dump([[g, a] for g, a, _ in got], f)
-    js = json.loads(subprocess.run(["node", str(Path(__file__).with_name("js_tiles.mjs")), f.name],
+    # same players as the server (the local database can be older than docs/data, which isn't what's being tested)
+    cols = json.loads((ROOT / "docs" / "data" / "players.json").read_text(encoding="utf-8"))["cols"]
+    rows = json.loads(sql(f"select json_agg(json_build_array({', '.join(cols)}) order by id) from game.players where guessable"))
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as pf:
+        json.dump({"cols": cols, "players": rows}, pf)
+    js = json.loads(subprocess.run(["node", str(Path(__file__).with_name("js_tiles.mjs")), f.name, pf.name],
                                    capture_output=True, text=True, check=True).stdout)
     jbad = sum(1 for (g, a, tiles), jt in zip(got, js) if tiles != jt)
     check(jbad == 0, f"page vs server: {jbad} of {len(got)} pairs differ")
