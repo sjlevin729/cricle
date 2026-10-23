@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /sponsor-thanks.html
+Disallow: /stats.html
 
 Sitemap: https://playcricle.com/sitemap.xml

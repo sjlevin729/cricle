@@ -156,7 +156,15 @@ create table if not exists game.ad_seen (
 );
 
 alter table game.ad_stats enable row level security;
+-- Google accounts allowed to see the private stats page (docs/stats.html). Kept only in the database, never in
+-- this file, so the owner's addresses stay out of the public code. Add one in the SQL editor:
+--   insert into game.owners values ('someone@gmail.com');
+create table if not exists game.owners (
+  email text primary key
+);
+
 alter table game.ad_seen enable row level security;
+alter table game.owners enable row level security;
 alter table game.settings enable row level security;
 alter table game.players enable row level security;
 alter table game.puzzles enable row level security;
@@ -177,7 +185,7 @@ begin
              'game_state', 'make_guess', 'open_hint', 'day_stats', 'my_stats', 'leaderboard', 'hall_of_fame',
              'past_answers', 'set_nickname', 'create_claim', 'redeem_claim', 'delete_my_account', 'health',
              'admin_export', 'admin_sync_players', 'admin_mark_guessable', 'admin_put_settings',
-             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report', 'admin_backup'))
+             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report', 'admin_backup', 'owner_stats'))
   loop execute 'drop function ' || f.sig || ' cascade'; end loop;
 end $$;
 
@@ -998,6 +1006,40 @@ begin
   return jsonb_build_object('guests_never_finished', idle, 'guests_inactive_a_year', old);
 end $$;
 
+-- The owner's private numbers (docs/stats.html): how many played each day, live for today. Only for a signed-in
+-- Google account listed in game.owners; everyone else gets not_owner. These counts are never shown in the game.
+create function public.owner_stats(p_days int default 120) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  u uuid := auth.uid();
+  t int := game.today();
+  s game.settings := game.settings_row();
+  days jsonb;
+begin
+  if u is null or not exists (select 1 from auth.users au join game.owners o on lower(o.email) = lower(au.email)
+                               where au.id = u and not au.is_anonymous) then
+    raise exception 'not_owner' using errcode = '42501';
+  end if;
+  if t is null or t < 0 then return jsonb_build_object('now', now(), 'today', t, 'days', '[]'::jsonb); end if;
+  with first_day as (select user_id, min(day) as d from game.results group by user_id),
+  per_day as (
+    select r.day, count(*)::int as started, count(*) filter (where r.done)::int as finished,
+           count(*) filter (where r.won)::int as won,
+           count(*) filter (where r.user_id in (select f.user_id from first_day f where f.d = r.day))::int as first_time,
+           count(*) filter (where not game.is_guest(r.user_id))::int as signed_in,
+           max(r.finished_at) as last_finish
+      from game.results r where r.day between greatest(0, t - greatest(p_days, 1) + 1) and t group by r.day)
+  select coalesce(jsonb_agg(jsonb_build_object('day', g.d, 'date', s.launch + g.d, 'started', coalesce(p.started, 0),
+           'finished', coalesce(p.finished, 0), 'won', coalesce(p.won, 0), 'first_time', coalesce(p.first_time, 0),
+           'signed_in', coalesce(p.signed_in, 0), 'last_finish', p.last_finish) order by g.d desc), '[]'::jsonb)
+    into days
+    from generate_series(greatest(0, t - greatest(p_days, 1) + 1), t) g(d) left join per_day p on p.day = g.d;
+  return jsonb_build_object('now', now(), 'today', t, 'launch', s.launch, 'days', days,
+    'players_ever', (select count(distinct user_id) from game.results),
+    'google_accounts', (select count(*) from auth.users where not is_anonymous),
+    'active_7_days', (select count(distinct user_id) from game.results where day > t - 7));
+end $$;
+
 -- Weekly backup (.github/workflows/backup.yml): one page of one table at a time, in a fixed order so paging is
 -- stable. Caches, claims and ad_seen are left out: they rebuild themselves or expire within days.
 create function public.admin_backup(p_table text, p_offset int default 0, p_limit int default 5000) returns jsonb
@@ -1012,6 +1054,7 @@ begin
     when 'profiles'     then 'select * from game.profiles order by user_id'
     when 'banned_words' then 'select * from game.banned_words order by word'
     when 'ad_stats'     then 'select * from game.ad_stats order by day, place, sponsor'
+    when 'owners'       then 'select * from game.owners order by email'
     when 'users'        then 'select id, is_anonymous, email, raw_user_meta_data, created_at, last_sign_in_at
                                 from auth.users order by id'
     when 'identities'   then 'select user_id, provider, provider_id, identity_data, created_at
@@ -1050,7 +1093,7 @@ begin
              'game_state', 'make_guess', 'open_hint', 'day_stats', 'my_stats', 'leaderboard', 'hall_of_fame',
              'past_answers', 'set_nickname', 'create_claim', 'redeem_claim', 'delete_my_account', 'health',
              'admin_export', 'admin_sync_players', 'admin_mark_guessable', 'admin_put_settings',
-             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report', 'admin_backup')
+             'admin_put_schedule', 'admin_cleanup', 'admin_reset_game', 'ad_event', 'admin_sponsor_report', 'admin_backup', 'owner_stats')
   loop
     execute format('revoke all on function %s from public, anon, authenticated, service_role', f.sig);
     if f.proname in ('day_stats', 'leaderboard', 'hall_of_fame', 'past_answers', 'health') then

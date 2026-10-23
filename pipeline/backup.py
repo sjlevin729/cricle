@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 from supabase_sync import Supabase
 
-TABLES = ["settings", "players", "puzzles", "results", "profiles", "banned_words", "ad_stats", "users", "identities"]
+TABLES = ["settings", "players", "puzzles", "results", "profiles", "banned_words", "ad_stats", "owners", "users", "identities"]
 PAGE = 5000
 
 

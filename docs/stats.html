@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.supabase.co; base-uri 'self'; form-action 'self'; object-src 'none'">
+<title>Owner stats · Cricle</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+:root { --bg: #eef2ec; --panel: #fff; --line: #cad4c7; --ink: #12261a; --ink-soft: #4b6052; --board: #17311f; --board-ink: #f3f1e7;
+  --ball: #b3302a; --near: #ef9f2f; --hit: #26803f; --bar: #cfe0cf; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0b1912; --panel: #122419; --line: #294533; --ink: #e9efe5; --ink-soft: #9fb3a5;
+  --board: #0f2218; --ball: #e2574b; --bar: #24452f; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.5 "Public Sans", "Segoe UI", system-ui, sans-serif; }
+header { background: var(--board); color: var(--board-ink); border-bottom: 3px solid var(--ball); }
+header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+header a { color: inherit; text-decoration: none; font: 900 1.7rem/1 "Big Shoulders Display", "Arial Narrow", sans-serif; text-transform: uppercase; }
+header span { font-size: .85rem; opacity: .8; }
+.wrap { max-width: 46rem; margin: 0 auto; }
+main { padding: 20px 16px 48px; }
+h1, h2 { font-family: "Big Shoulders Display", "Arial Narrow", sans-serif; text-transform: uppercase; line-height: 1.05; margin: 0 0 8px; }
+h1 { font-size: 2.2rem; } h2 { font-size: 1.35rem; margin-top: 28px; }
+.muted { color: var(--ink-soft); }
+.small { font-size: .85rem; }
+.btn { border: 0; border-radius: 12px; padding: 12px 18px; font: 700 1rem/1 inherit; font-family: inherit; cursor: pointer; background: var(--near); color: #1d1406; }
+.btn.alt { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 10px; margin: 12px 0; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.tile b { display: block; font: 900 2.4rem/1 "Big Shoulders Display", "Arial Narrow", sans-serif; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--ink-soft); font-size: .88rem; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--ink-soft); }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--hit); }
+.table { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 8px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; color: var(--ink-soft); font-weight: 700; }
+th:first-child, td:first-child { text-align: left; }
+tr:last-child td { border-bottom: 0; }
+tr.today td { font-weight: 700; }
+td.bar { width: 40%; min-width: 7rem; text-align: left; }
+td.bar i { display: block; height: 12px; border-radius: 3px; background: var(--bar); }
+tr.today td.bar i { background: var(--hit); }
+.err { color: var(--ball); }
+.state { padding: 24px 0; }
+@media (max-width: 560px) { th, td { padding: 8px 5px; font-size: .9rem; } th { font-size: .68rem; letter-spacing: 0; }
+  td.bar, th.bar { display: none; } }
+</style>
+</head>
+<body>
+<header><div class="wrap"><a href="./">Cricle</a><span>Owner stats</span></div></header>
+<main class="wrap" id="app"><p class="state muted">Loading…</p></main>
+<script src="vendor/supabase-2.117.2.js"></script>
+<script src="config.js"></script>
+<script>
+// Private numbers for the owner. The server only answers owner_stats for Google accounts listed in game.owners,
+// so this page shows nothing to anyone else. It keeps its own sign-in, separate from the game's.
+const CONFIG = window.CRICLE_CONFIG || {};
+const app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const fmt = n => Number(n || 0).toLocaleString("en-GB");
+const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "–";
+const dateText = d => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+const timeText = t => t ? new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "–";
+let sb, timer;
+
+function signedOut(msg) {
+  app.innerHTML = `<h1>Owner stats</h1>
+    <p class="muted">How many people play Cricle each day. Only accounts on the owner list can see these numbers.</p>
+    ${msg ? `<p class="err">${esc(msg)}</p>` : ""}
+    <p><button class="btn" id="signin">Sign in with Google</button></p>`;
+  document.getElementById("signin").onclick = () =>
+    sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
+}
+
+function render(d, email) {
+  const days = d.days || [], t = days[0];
+  const max = Math.max(1, ...days.map(x => x.started));
+  const rows = days.map(x => `<tr class="${x.day === d.today ? "today" : ""}">
+      <td>#${x.day + 1} · ${dateText(x.date)}</td>
+      <td>${fmt(x.started)}</td><td>${fmt(x.finished)}</td><td>${pct(x.won, x.finished)}</td>
+      <td>${fmt(x.first_time)}</td><td>${fmt(x.signed_in)}</td>
+      <td class="bar"><i style="width:${Math.max(2, Math.round(x.started / max * 100))}%"></i></td></tr>`).join("");
+  const week = days.slice(0, 7), weekAvg = week.length ? Math.round(week.reduce((a, x) => a + x.started, 0) / week.length) : 0;
+  app.innerHTML = `<h1>Owner stats</h1>
+    <p><span class="live">Live, updates every 30 seconds · last checked ${timeText(d.now)}</span></p>
+    ${t ? `<h2>Today (#${t.day + 1})</h2>
+    <div class="tiles">
+      <div class="tile"><b>${fmt(t.started)}</b><span>played today</span></div>
+      <div class="tile"><b>${fmt(t.finished)}</b><span>finished</span></div>
+      <div class="tile"><b>${pct(t.won, t.finished)}</b><span>solved</span></div>
+      <div class="tile"><b>${fmt(t.first_time)}</b><span>new players today</span></div>
+    </div>
+    <p class="small muted">Last game finished at ${timeText(t.last_finish)}. Days run midnight to midnight UTC (1am to 1am UK summer time).</p>` : `<p class="muted">The daily game hasn't started yet.</p>`}
+    <h2>All time</h2>
+    <div class="tiles">
+      <div class="tile"><b>${fmt(d.players_ever)}</b><span>people have played</span></div>
+      <div class="tile"><b>${fmt(d.active_7_days)}</b><span>played in the last 7 days</span></div>
+      <div class="tile"><b>${fmt(weekAvg)}</b><span>a day, last 7 days</span></div>
+      <div class="tile"><b>${fmt(d.google_accounts)}</b><span>signed in with Google</span></div>
+    </div>
+    <h2>Every day</h2>
+    <div class="table"><table>
+      <thead><tr><th>Day</th><th>Played</th><th>Done</th><th>Solved</th><th>New</th><th>Google</th><th class="bar"></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="7" class="muted">No days yet.</td></tr>`}</tbody></table></div>
+    <p class="small muted">Played: started that day's game. Done: finished it, solved or all out. New: their first ever daily game. Google: signed in rather than a guest.</p>
+    <p class="small muted">Signed in as ${esc(email || "")}. <button class="btn alt" id="signout">Sign out</button></p>`;
+  document.getElementById("signout").onclick = async () => { await sb.auth.signOut(); location.replace(location.pathname); };
+}
+
+async function load() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session || session.user.is_anonymous) { clearInterval(timer); return signedOut(); }
+  const { data, error } = await sb.rpc("owner_stats", { p_days: 120 });
+  if (error) {
+    clearInterval(timer);
+    if (error.message === "not_owner") return signedOut(`${session.user.email} isn't on the owner list.`);
+    app.innerHTML = `<h1>Owner stats</h1><p class="err">Couldn't load the numbers (${esc(error.message)}).</p>`;
+    return;
+  }
+  render(data, session.user.email);
+}
+
+(async () => {
+  if (!CONFIG.supabaseUrl || !window.supabase) { app.innerHTML = `<p class="err">The game server isn't set up.</p>`; return; }
+  sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey, {
+    auth: { flowType: "pkce", persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "cricle-owner-auth" } });
+  const url = new URL(location.href);
+  const authError = url.searchParams.get("error_description");
+  await sb.auth.getSession();                       // lets Supabase finish reading a sign-in code from the address first
+  if (url.search) history.replaceState(null, "", url.pathname);
+  if (authError) return signedOut("Google sign-in didn't work: " + authError);
+  await load();
+  timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+})();
+</script>
+</body>
+</html>

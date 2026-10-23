@@ -455,6 +455,33 @@ def test_cache():
     print("cache ok")
 
 
+def test_owner_stats():
+    """The private stats page: real counts, but only for a Google account on game.owners."""
+    t = today()
+    clear_results()
+    owner_email = f"owner{uuid.uuid4().hex[:6]}@example.com"
+    sql(f"insert into game.owners values ('{owner_email.upper()}')")          # matched without caring about case
+    try:
+        owner, other, guest = Client.member(owner_email), Client.member(f"x{uuid.uuid4().hex[:6]}@example.com"), Client.guest()
+        for who in (Client(), guest, other):
+            code, msg = who.err("owner_stats")
+            check(msg in ("not_owner", "permission denied for function owner_stats"), f"owner_stats refused ({msg})")
+        players = [Client.guest() for _ in range(3)]
+        seed_results(players[0], [(0, 3, True, 0)] if t > 0 else [])
+        for p in players[:2]:
+            p.rpc("make_guess", p_day=t, p_player=answer(t))
+        players[2].rpc("make_guess", p_day=t, p_player=wrong_ids(t, 1)[0])      # started, not finished
+        st = owner.rpc("owner_stats")
+        d0 = st["days"][0]
+        check(st["today"] == t and d0["day"] == t and d0["started"] == 3 and d0["finished"] == 2 and d0["won"] == 2,
+              f"today's counts {d0}")
+        check(d0["first_time"] == (2 if t > 0 else 3) and d0["signed_in"] == 0, f"new and signed-in counts {d0}")
+        check(st["players_ever"] == 3 and len(st["days"]) == t + 1, f"totals {st['players_ever']} over {len(st['days'])} days")
+    finally:
+        sql(f"delete from game.owners where lower(email) = lower('{owner_email}')")
+    print("owner stats ok")
+
+
 def test_cleanup():
     t = today()
     fresh, idle, old, played, member = Client.guest(), Client.guest(), Client.guest(), Client.guest(), Client.member(f"k{uuid.uuid4().hex[:8]}@example.com")
@@ -485,6 +512,7 @@ if __name__ == "__main__":
     test_schedule_rules()
     test_cache()
     test_privacy()
+    test_owner_stats()
     test_cleanup()
     print("\nALL PASSED" if not FAILS else f"\n{len(FAILS)} FAILURES")
     sys.exit(1 if FAILS else 0)
