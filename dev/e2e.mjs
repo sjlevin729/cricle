@@ -17,7 +17,7 @@ const wrongNames = (n, avoid) => sql(`select name from game.players where pool a
   and name in (select name from game.players group by name having count(*) = 1) order by tests desc nulls last limit ${n}`).split("\n");
 
 sql("delete from game.results; delete from game.claims; delete from game.profiles; delete from game.day_summary; delete from game.board_rows; delete from game.cache; delete from auth.users;");
-sql("update game.settings set min_crowd = 20");   // the real rule to start with; lowered below so boards have content
+sql("update game.settings set min_crowd = 5");   // the real rule to start with; lowered below so boards have content
 
 const browser = await chromium.launch();
 const errors = [];
@@ -110,7 +110,7 @@ check((await A.page.locator(".board li").count()) === 3, "three players on today
 check(/Top 10 so far today/.test(await A.page.locator("#boardBody").innerText()) && !/\b\d+ players?\b/i.test(await A.page.locator("#boardBody").innerText()), "board says Top 10, no player count");
 check(/\(you\)/.test(board), "I'm marked on the board");
 check(A.page.url().endsWith("#leaderboard"), "address shows #leaderboard");
-sql("update game.settings set min_crowd = 20; delete from game.cache;");
+sql("update game.settings set min_crowd = 5; delete from game.cache;");
 await A.page.reload(); await A.page.waitForSelector("#boardBody .state");
 await A.page.waitForFunction(() => /appears once enough people/.test(document.querySelector("#boardBody")?.textContent || ""));
 const few = await A.page.locator("#boardBody").innerText();

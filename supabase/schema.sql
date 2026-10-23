@@ -31,7 +31,7 @@ create table if not exists game.settings (
 );
 insert into game.settings (id) values (true) on conflict do nothing;
 -- fewest results before percentages or a leaderboard are shown (see game.crowd)
-alter table game.settings add column if not exists min_crowd int not null default 20;
+alter table game.settings add column if not exists min_crowd int not null default 5;
 
 create table if not exists game.players (
   id         int primary key,                      -- English Wikipedia page id (stable across refreshes)
@@ -486,7 +486,7 @@ $$;
 -- Below game.min_crowd() results there's nothing shown at all, because small numbers are easy to work back
 -- from (33% / 67% means three players).
 create function game.min_crowd() returns int
-language sql stable set search_path = '' as $$ select coalesce((select min_crowd from game.settings where id), 20) $$;
+language sql stable set search_path = '' as $$ select coalesce((select min_crowd from game.settings where id), 5) $$;
 
 -- c = counts[1..11] (solved in 1..10, then all out); mine = the caller's bucket, or null.
 -- Returns {enough, pct[11], solved_pct, avg, beat}. A bucket with anyone in it shows at least 1%.
