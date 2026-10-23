@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://*.googletagmanager.com https://connect.facebook.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: https://*.google-analytics.com https://*.googletagmanager.com; font-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://www.facebook.com https://connect.facebook.net; base-uri 'self'; form-action 'self'; object-src 'none'">
 <title>Cricle: guess the cricketer, a daily cricket quiz game</title>
 <meta name="description" content="Free daily cricket guessing game, like Wordle for cricket fans. Guess today's international cricketer in ten tries from their country, role, debut and matches. Leaderboards and practice rounds.">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Cricle","url":"https://playcricle.com/","description":"A free daily cricket guessing game. Guess the international cricketer in ten tries.","applicationCategory":"GameApplication","genre":"Puzzle","operatingSystem":"Any","inLanguage":"en-GB","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"GBP"},"image":"https://playcricle.com/og.png"}</script>
@@ -450,7 +450,7 @@ footer nav a { color: var(--ink); text-decoration-color: var(--near); text-decor
 <div class="snack" id="snack" role="status" aria-live="polite" hidden></div>
 <section class="consent" id="consent" aria-label="Cookies" hidden>
   <div class="consent-in">
-    <p>Can Cricle use cookies to count visits with Google Analytics? It helps decide what to improve. No ads, and the game works either way. <a href="privacy.html">Privacy</a></p>
+    <p>Can Cricle use cookies to count visits (Google Analytics) and to measure our Facebook and Instagram ads (Meta)? It helps us improve the game and find new players. The game works the same either way. <a href="privacy.html">Privacy</a></p>
     <div class="row"><button class="btn gold" type="button" data-act="consent-yes">Allow</button><button class="btn alt" type="button" data-act="consent-no">No thanks</button></div>
   </div>
 </section>
@@ -922,6 +922,7 @@ function afterGuess(game) {
   renderPlay();
   if (game.done) {
     track("game_finish", { mode: game.kind, won: game.won ? 1 : 0, guesses: game.rows.length, hints: hintsUsed(game) });
+    if (game.kind === "daily") pixelEvent("GameFinished", { won: game.won ? 1 : 0 });
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
     setTimeout(() => openResult(game), still ? 0 : 1000);   // let the last tiles turn over first
@@ -1400,7 +1401,34 @@ function watchAds() {
 /* ---------- analytics (Google Analytics 4, only after the visitor allows it) ---------- */
 const CONSENT_KEY = "cricle:consent";
 const GA = { id: (CONFIG.gaMeasurementId || "").trim(), on: false };
-function consentChoice() { const c = store.get(CONSENT_KEY); return c && typeof c.analytics === "boolean" ? c.analytics : null; }
+// v2 covers Google Analytics and the Meta Pixel. An older "Allow" (v1) only covered Google Analytics, so it's asked again.
+function consentChoice() {
+  const c = store.get(CONSENT_KEY);
+  if (!c || typeof c.analytics !== "boolean") return null;
+  return c.analytics && c.v !== 2 ? null : c.analytics;
+}
+const PIXEL = { id: (CONFIG.metaPixelId || "").trim(), on: false };
+function startPixel() {
+  if (!PIXEL.id || PIXEL.on) return;
+  PIXEL.on = true;
+  /* Meta's standard loader, unchanged apart from layout */
+  !function (f, b, e, v, n, t, s) { if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+    if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = []; t = b.createElement(e); t.async = !0; t.src = v;
+    s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s); }(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+  fbq("init", PIXEL.id);
+  fbq("track", "PageView");
+}
+function stopPixel() {
+  if (PIXEL.on && window.fbq) fbq("consent", "revoke");
+  PIXEL.on = false;
+  const host = location.hostname.split(".");
+  for (const c of document.cookie.split(";").map(x => x.split("=")[0].trim()).filter(n => n === "_fbp" || n === "_fbc")) {
+    for (let i = 0; i < host.length - 1; i++) document.cookie = `${c}=; Max-Age=0; path=/; domain=.${host.slice(i).join(".")}`;
+    document.cookie = `${c}=; Max-Age=0; path=/`;
+  }
+}
+// Only what the ads need to learn from: that someone finished today's game. Never who they are or their guesses.
+function pixelEvent(name, params) { if (PIXEL.on && window.fbq) fbq("trackCustom", name, params || {}); }
 function startAnalytics(sendView) {
   if (!GA.id || GA.on) return;
   GA.on = true;
@@ -1430,16 +1458,16 @@ function trackView(view) {
   track("page_view", { page_title: "Cricle: " + (view || "play"), page_location: location.origin + path });
 }
 function setConsent(yes) {
-  store.set(CONSENT_KEY, { analytics: yes, at: new Date().toISOString() });
+  store.set(CONSENT_KEY, { analytics: yes, v: 2, at: new Date().toISOString() });
   $("#consent").hidden = true; document.body.classList.remove("has-consent");
-  if (yes) startAnalytics(true); else stopAnalytics();
+  if (yes) { startAnalytics(true); startPixel(); } else { stopAnalytics(); stopPixel(); }
 }
-function showConsentBar() { if (!GA.id) return; $("#consent").hidden = false; document.body.classList.add("has-consent"); }
+function showConsentBar() { if (!GA.id && !PIXEL.id) return; $("#consent").hidden = false; document.body.classList.add("has-consent"); }
 function initConsent() {
-  if (!GA.id) return;                      // analytics not set up: no bar, nothing loaded
+  if (!GA.id && !PIXEL.id) return;          // nothing set up: no bar, nothing loaded
   $("#cookieLink").hidden = false;
   const c = consentChoice();
-  if (c === true) startAnalytics(); else if (c === null) showConsentBar();
+  if (c === true) { startAnalytics(); startPixel(); } else if (c === null) showConsentBar();
 }
 
 /* ---------- navigation ---------- */

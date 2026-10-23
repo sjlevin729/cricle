@@ -1026,11 +1026,13 @@ begin
     select r.day, count(*)::int as started, count(*) filter (where r.done)::int as finished,
            count(*) filter (where r.won)::int as won,
            count(*) filter (where r.user_id in (select f.user_id from first_day f where f.d = r.day))::int as first_time,
+           count(*) filter (where r.user_id in (select f.user_id from first_day f where f.d = r.day)
+                              and exists (select 1 from game.results l where l.user_id = r.user_id and l.day > r.day))::int as came_back,
            count(*) filter (where not game.is_guest(r.user_id))::int as signed_in,
            max(r.finished_at) as last_finish
       from game.results r where r.day between greatest(0, t - greatest(p_days, 1) + 1) and t group by r.day)
   select coalesce(jsonb_agg(jsonb_build_object('day', g.d, 'date', s.launch + g.d, 'started', coalesce(p.started, 0),
-           'finished', coalesce(p.finished, 0), 'won', coalesce(p.won, 0), 'first_time', coalesce(p.first_time, 0),
+           'finished', coalesce(p.finished, 0), 'won', coalesce(p.won, 0), 'first_time', coalesce(p.first_time, 0), 'came_back', coalesce(p.came_back, 0),
            'signed_in', coalesce(p.signed_in, 0), 'last_finish', p.last_finish) order by g.d desc), '[]'::jsonb)
     into days
     from generate_series(greatest(0, t - greatest(p_days, 1) + 1), t) g(d) left join per_day p on p.day = g.d;

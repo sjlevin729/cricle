@@ -288,6 +288,37 @@ await F.page.goto(BASE); await F.page.waitForSelector("#consent");
 await shot(F.page, "phone-cookie-bar");
 await F.ctx.close();
 
+// Meta Pixel: same consent; an old "Allow" from before the Pixel is asked again
+console.log("\nMeta Pixel");
+const P = await newDevice();
+const fbHits = [];
+await P.page.route("**/config.js", async r => {
+  const body = (await (await fetch(BASE + "config.js")).text()).replace(/}\s*;\s*$/, ", gaMeasurementId: 'G-TEST123', metaPixelId: '1234567890' };");
+  r.fulfill({ contentType: "text/javascript", body });
+});
+await P.page.route("https://www.googletagmanager.com/**", r => r.fulfill({ contentType: "text/javascript", body: "" }));
+await P.page.route("https://connect.facebook.net/**", r => { fbHits.push(r.request().url()); r.fulfill({ contentType: "text/javascript", body: "window.__fbLoaded = true;" }); });
+await P.page.goto(BASE); await P.page.waitForSelector("#guessInput");
+await P.page.evaluate(() => { localStorage.setItem("cricle:consent", JSON.stringify({ analytics: true, at: "2026-10-20T00:00:00Z" })); });
+await P.page.reload(); await P.page.waitForSelector("#guessInput");
+check(await P.page.locator("#consent").isVisible() && fbHits.length === 0, "an Allow from before the Pixel is asked again, nothing from Meta yet");
+check(/Meta/.test(await P.page.locator("#consent").innerText()), "cookie bar names Meta");
+await P.page.click("[data-act=consent-yes]");
+await P.page.waitForFunction(() => window.__fbLoaded === true);
+const q0 = await P.page.evaluate(() => JSON.stringify(window.fbq.queue.map(a => Array.from(a))));
+check(q0.includes('"init","1234567890"') && q0.includes('"track","PageView"'), "Allow: Pixel loads with the right ID and a page view");
+await guess(P.page, ansName);
+await P.page.waitForSelector("dialog.sheet[open]");
+const q1 = await P.page.evaluate(() => JSON.stringify(window.fbq.queue.map(a => Array.from(a))));
+check(q1.includes('"trackCustom","GameFinished",{"won":1}'), "finishing the daily game sends GameFinished");
+check(!/@|guess|Silly|user/i.test(q1.replace(/GameFinished/g, "")), "nothing personal sent to Meta");
+await P.page.click("[data-act=close-result]");
+await P.page.click("#cookieLink"); await P.page.click("[data-act=consent-no]");
+await P.page.reload(); await P.page.waitForSelector(".result-bar");
+const before = fbHits.length;
+check(await P.page.evaluate(() => !window.fbq) && fbHits.length === before, "No thanks later: Pixel not loaded again");
+await P.ctx.close();
+
 // ---------------------------------------------------------------- 8c. sponsor slot
 console.log("\nSponsor slot");
 check(/Sponsor the game/.test(await G.page.locator("#footSponsor").innerText()), "footer invites sponsors");

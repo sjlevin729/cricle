@@ -46,7 +46,7 @@ tr.today td.bar i { background: var(--hit); }
 .err { color: var(--ball); }
 .state { padding: 24px 0; }
 @media (max-width: 560px) { th, td { padding: 8px 5px; font-size: .9rem; } th { font-size: .68rem; letter-spacing: 0; }
-  td.bar, th.bar { display: none; } }
+  td.bar, th.bar, td.g, th.g { display: none; } }
 </style>
 </head>
 <body>
@@ -81,8 +81,10 @@ function render(d, email) {
   const rows = days.map(x => `<tr class="${x.day === d.today ? "today" : ""}">
       <td>#${x.day + 1} · ${dateText(x.date)}</td>
       <td>${fmt(x.started)}</td><td>${fmt(x.finished)}</td><td>${pct(x.won, x.finished)}</td>
-      <td>${fmt(x.first_time)}</td><td>${fmt(x.signed_in)}</td>
+      <td>${fmt(x.first_time)}</td><td>${x.day === d.today ? "–" : pct(x.came_back, x.first_time)}</td><td class="g">${fmt(x.signed_in)}</td>
       <td class="bar"><i style="width:${Math.max(2, Math.round(x.started / max * 100))}%"></i></td></tr>`).join("");
+  const past = days.filter(x => x.day !== d.today).slice(0, 7);
+  const backPct = pct(past.reduce((a, x) => a + x.came_back, 0), past.reduce((a, x) => a + x.first_time, 0));
   const week = days.slice(0, 7), weekAvg = week.length ? Math.round(week.reduce((a, x) => a + x.started, 0) / week.length) : 0;
   app.innerHTML = `<h1>Owner stats</h1>
     <p><span class="live">Live, updates every 30 seconds · last checked ${timeText(d.now)}</span></p>
@@ -100,12 +102,13 @@ function render(d, email) {
       <div class="tile"><b>${fmt(d.active_7_days)}</b><span>played in the last 7 days</span></div>
       <div class="tile"><b>${fmt(weekAvg)}</b><span>a day, last 7 days</span></div>
       <div class="tile"><b>${fmt(d.google_accounts)}</b><span>signed in with Google</span></div>
+      <div class="tile"><b>${backPct}</b><span>of new players came back (last 7 days)</span></div>
     </div>
     <h2>Every day</h2>
     <div class="table"><table>
-      <thead><tr><th>Day</th><th>Played</th><th>Done</th><th>Solved</th><th>New</th><th>Google</th><th class="bar"></th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="7" class="muted">No days yet.</td></tr>`}</tbody></table></div>
-    <p class="small muted">Played: started that day's game. Done: finished it, solved or all out. New: their first ever daily game. Google: signed in rather than a guest.</p>
+      <thead><tr><th>Day</th><th>Played</th><th>Done</th><th>Solved</th><th>New</th><th>Back</th><th class="g">Google</th><th class="bar"></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="8" class="muted">No days yet.</td></tr>`}</tbody></table></div>
+    <p class="small muted">Played: started that day's game. Done: finished it, solved or all out. New: their first ever daily game. Back: of those new players, how many have played again on a later day (the best sign that new players, including ones from ads, are worth having). Google: signed in rather than a guest (wider screens only).</p>
     <p class="small muted">Signed in as ${esc(email || "")}. <button class="btn alt" id="signout">Sign out</button></p>`;
   document.getElementById("signout").onclick = async () => { await sb.auth.signOut(); location.replace(location.pathname); };
 }

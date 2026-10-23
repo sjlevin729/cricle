@@ -477,6 +477,9 @@ def test_owner_stats():
               f"today's counts {d0}")
         check(d0["first_time"] == (2 if t > 0 else 3) and d0["signed_in"] == 0, f"new and signed-in counts {d0}")
         check(st["players_ever"] == 3 and len(st["days"]) == t + 1, f"totals {st['players_ever']} over {len(st['days'])} days")
+        if t > 0:
+            day0 = st["days"][-1]
+            check(day0["first_time"] == 1 and day0["came_back"] == 1, f"day 0: the one new player came back today {day0}")
     finally:
         sql(f"delete from game.owners where lower(email) = lower('{owner_email}')")
     print("owner stats ok")

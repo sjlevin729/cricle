@@ -8,6 +8,8 @@ window.CRICLE_CONFIG = {
   supabaseKey: "sb_publishable_WwQwPyvzGjlCadH8R7g6rg_kovWJ5yk",
   // Google Analytics 4 Measurement ID (starts G-). Leave empty for no analytics and no cookie bar.
   gaMeasurementId: "G-CB63B00DCW",
+  // Meta Pixel ID (a long number from Events Manager). Leave empty for no Pixel. Loads only after the visitor allows cookies.
+  metaPixelId: "",
   // The sponsor, shown under the scoreboard, on the result screen and in the footer.
   // Leave name empty to advertise the space instead.
   //   logo:   a square image, a full https:// address or a file put in docs/ (e.g. "sponsor-logo.png")
